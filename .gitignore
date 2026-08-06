@@ -10,5 +10,8 @@
 
 !Makefile
 
+!README.md
+!.env.example
+
 !.dockerignore
 !.gitignore
