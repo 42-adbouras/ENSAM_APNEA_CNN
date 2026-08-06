@@ -1,0 +1,15 @@
+services:
+  apnea_cnn:
+    image: apnea-cnn:0.1
+    container_name: apnea_cnn
+    env_file:
+      - .env
+    build:
+      context: .
+    ports:
+      - "8888:8888"
+    volumes:
+      - ./data:/data
+      - ./results:/results
+    stdin_open: true
+    tty: true

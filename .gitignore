@@ -1,0 +1,14 @@
+*
+
+!src/
+!*.py
+!results/
+
+!docker-compose.yml
+!Dockerfile
+!requirements.txt
+
+!Makefile
+
+!.dockerignore
+!.gitignore
