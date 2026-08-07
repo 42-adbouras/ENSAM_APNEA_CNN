@@ -29,10 +29,6 @@ cannot learn to recognise the patient instead of the apnea.
 | Learning (`a01–a20`, `b01–b05`, `c01–c10`) | 35 | 17 023 |
 | Test (`x01–x35`, official PhysioNet test set) | 35 | 17 248 |
 
-`src/utils.py` also defines an 8-record validation hold-out (`SPLITS["val"]`), but `preprocess.py`
-deliberately folds it back into the training array because the training script carves its own
-validation set with `validation_split=0.2`.
-
 ---
 
 ## Repository layout
@@ -120,20 +116,14 @@ annotations, `.qrs` beat annotations).
 
 `overwrite=False`, so re-running it resumes rather than re-downloading.
 
-> **Note:** unlike `prep` and `train`, the `download` target has no `up` prerequisite. Run
-> `make up` first, or it will fail with "no such service".
-
 ### 2. Preprocess (`make prep`)
 
 Runs [src/preprocess.py](src/preprocess.py). For every record:
 
 1. `load_record()` reads the ECG channel and its per-minute `A`/`N` annotations.
-2. `clean_ecg()` applies a 4th-order Butterworth band-pass (0.5–40 Hz), a 50 Hz notch
-   (mains interference), NaN replacement by the median, and clipping to ±5 mV. Both filters are
-   zero-phase (`filtfilt`), so R-peak positions are preserved.
-3. Each labelled minute becomes one `(6000,)` row, z-scored against its own mean and standard
-   deviation. This discards the patient-specific amplitude offset and keeps only the *shape* of
-   the minute.
+2. `clean_ecg()` applies a 4th-order Butterworth band-pass (0.5–40 Hz), a 50 Hz notch (mains interference), NaN replacement by the median, and clipping to ±5 mV. Both filters are
+zero-phase (`filtfilt`), so R-peak positions are preserved.
+3. Each labelled minute becomes one `(6000,)` row, z-scored against its own mean and standard deviation. This discards the patient-specific amplitude offset and keeps only the *shape* of the minute.
 4. Windows running past the end of a recording, or carrying a symbol other than `A`/`N`, are skipped.
 
 The training split is shuffled once with a fixed seed (42) before saving, because Keras'

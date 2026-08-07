@@ -7,7 +7,7 @@ build:
 up:
 	$(COMPOSE) up -d
 
-download: 
+download: up 
 	$(COMPOSE) exec $(SERVICE) python download.py
 
 prep: up
