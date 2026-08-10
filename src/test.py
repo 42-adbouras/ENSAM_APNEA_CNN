@@ -12,6 +12,24 @@ from utils import RESULTS_ROOT, load_split
 
 THRESHOLD_CRITERION = "accuracy"   # "accuracy" | "youden" | "f1"
 THRESHOLD_GRID = np.arange(0.05, 0.96, 0.01)
+SMOOTH_WINDOW = 5                  # minutes; set to 1 to disable
+
+
+def smooth(prob: np.ndarray, counts: np.ndarray) -> np.ndarray:
+    if SMOOTH_WINDOW <= 1:
+        return prob
+
+    kernel = np.ones(SMOOTH_WINDOW) / SMOOTH_WINDOW
+    pad = SMOOTH_WINDOW // 2
+    out = np.empty_like(prob)
+    start = 0
+    for n in counts:
+        segment = prob[start:start + n]
+        padded = np.pad(segment, pad, mode="edge")
+        out[start:start + n] = np.convolve(padded, kernel, mode="valid")
+        start += n
+    return out
+
 
 def load_model(path: Path):
     try:
@@ -80,14 +98,7 @@ def print_results(metrics: dict, split: str) -> None:
 
 
 def main(argv: list[str]) -> None:
-    args = [a for a in argv if not a.startswith("--")]
-    split = "test"
-    if "--split" in argv:
-        i = argv.index("--split")
-        split = argv[i + 1] if i + 1 < len(argv) else "test"
-        args = [a for a in args if a != split]
-
-    model_path = Path(args[0]) if args else MODEL_PATH
+    model_path = Path(argv[0]) if argv else MODEL_PATH
     if not model_path.is_absolute() and not model_path.exists():
         model_path = RESULTS_ROOT / model_path
     if not model_path.exists():
@@ -96,14 +107,16 @@ def main(argv: list[str]) -> None:
     model = load_model(model_path)
 
     val = load_split("val")
-    prob_val = model.predict(val["X"][..., np.newaxis], verbose=1).ravel()
+    prob_val = smooth(model.predict(val["X"][..., np.newaxis], verbose=1).ravel(),
+                      val["counts"])
     threshold, _stats = choose_threshold(val["y"], prob_val)
 
-    target = val if split == "val" else load_split(split)
-    prob = prob_val if split == "val" else model.predict(
-        target["X"][..., np.newaxis], verbose=0).ravel()
+    test = load_split("test")
+    prob_test = smooth(model.predict(test["X"][..., np.newaxis], verbose=1).ravel(),
+                       test["counts"])
 
-    print_results(evaluate(target["y"], prob, threshold), split)
+    print_results(evaluate(val["y"], prob_val, threshold), "val")
+    print_results(evaluate(test["y"], prob_test, threshold), "test")
 
 
 if __name__ == "__main__":

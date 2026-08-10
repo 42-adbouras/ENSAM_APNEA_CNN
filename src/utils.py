@@ -255,22 +255,20 @@ def load_record(rec: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 # PART 7 : READING BACK WHAT preprocess.py WROTE
 # ────────────────────────────────────────────────────────────────
 #
-# One split is two files on disk, and nothing else:
+# One split is three files on disk:
 #
-#   X_<split>_apnea.npy   (N, 6000) float32   the windows
-#   y_<split>_apnea.npy   (N,)      float32   0 = normal, 1 = apnea
+#   X_<split>_apnea.npy       (N, 6000) float32   the windows
+#   y_<split>_apnea.npy       (N,)      float32   0 = normal, 1 = apnea
+#   counts_<split>_apnea.npy  (R,)      int32     windows per record
 #
-# There is deliberately no third file saying which record each window
-# came from. Earlier versions carried one — first a records_ array with
-# one name per window, then a manifest listing each record and its
-# window count — to support per-record scoring.
+# counts is small — 27, 8 and 35 integers — and is NOT used for training.
+# It exists because the temporal smoothing in test.py averages each
+# minute with its neighbours, and a window straddling the join between
+# two recordings would average two different sleepers together. counts
+# is the minimum needed to know where each night ends.
 #
-# Both are gone, and so is per-record scoring. What that costs is real
-# and worth stating plainly: pooled averages hide the patients a model
-# fails on. The run that motivated the feature had a pooled AUC of 0.892
-# while its worst individual recording scored 0.165, far below chance on
-# somebody the device would have been worn by. Nothing in the pipeline
-# can surface that any more.
+# It does not restore per-record SCORING, which was removed along with
+# the records_ array and the manifest. It only marks boundaries.
 #
 # This function lives in utils, not in the trainer, because the writer
 # (preprocess.py) and both readers (model.py, test.py) have to agree on
@@ -279,21 +277,26 @@ def load_record(rec: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
 
 def load_split(split: str) -> dict:
-    """One split -> {"X", "y"}."""
+    """One split -> {"X", "y", "counts"}."""
     x_path = PROCESSED_DIR / f"X_{split}{SUFFIX}.npy"
     y_path = PROCESSED_DIR / f"y_{split}{SUFFIX}.npy"
+    c_path = PROCESSED_DIR / f"counts_{split}{SUFFIX}.npy"
 
-    missing = [p.name for p in (x_path, y_path) if not p.exists()]
+    missing = [p.name for p in (x_path, y_path, c_path) if not p.exists()]
     if missing:
-        raise SystemExit(f"missing {', '.join(missing)} in {PROCESSED_DIR}")
+        raise SystemExit(
+            f"missing {', '.join(missing)} in {PROCESSED_DIR}\n"
+            f"Run:  make prep")
         # A named error rather than the bare FileNotFoundError numpy would
         # raise halfway through loading. That one says which file is absent
         # but never that the fix is to regenerate the whole folder.
 
     X = np.load(x_path)
     y = np.load(y_path)
+    counts = np.load(c_path)
 
-    assert len(X) == len(y), \
-        f"{split}: X={len(X)} y={len(y)} disagree — data/processed is stale"
+    assert len(X) == len(y) == int(counts.sum()), (
+        f"{split}: X={len(X)} y={len(y)} counts={int(counts.sum())} "
+        f"disagree — data/processed is stale, run `make prep`")
 
-    return {"X": X, "y": y}
+    return {"X": X, "y": y, "counts": counts}

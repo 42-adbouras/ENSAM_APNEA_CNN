@@ -212,7 +212,7 @@ def sequencize(ecg_clean: np.ndarray, times: np.ndarray, labels: np.ndarray):
 
 def process_split(records: list[str]):
     """Every record in one split -> (X, y)."""
-    X_parts, y_parts = [], []
+    X_parts, y_parts, counts = [], [], []
 
     for rec in records:
         ecg, times, labels = load_record(rec)
@@ -233,8 +233,13 @@ def process_split(records: list[str]):
 
         X_parts.append(X)
         y_parts.append(y)
+        counts.append(len(y))
+        # How many minutes this record contributed. Once the arrays are
+        # concatenated this is the only thing left that says where one
+        # recording ends and the next begins.
 
-    return np.concatenate(X_parts), np.concatenate(y_parts)
+    return (np.concatenate(X_parts), np.concatenate(y_parts),
+            np.asarray(counts, dtype=np.int32))
     # concatenate, not stack: the per-record axis of minutes is exactly what has
     # to be merged, so N records give a single array of M minutes.
 
@@ -244,7 +249,7 @@ def process_split(records: list[str]):
 # ────────────────────────────────────────────────────────────────
 
 
-def validate(X, y) -> None:
+def validate(X, y, counts) -> None:
     """Fail loudly on the data bugs that would otherwise train silently."""
     # Deliberately assertions and not warnings: a data bug that goes through
     # silently costs hours of training on data that means nothing.
@@ -257,6 +262,11 @@ def validate(X, y) -> None:
     assert len(X) == len(y), f"X and y out of step: {len(X)} vs {len(y)}"
     # Both describe the same minutes in the same order. A shift by one means
     # samples trained against the wrong answer.
+
+    assert int(counts.sum()) == len(y), \
+        f"record counts sum to {int(counts.sum())}, not {len(y)}"
+    # counts is the record axis. If it does not add up, test.py smooths across
+    # the wrong boundaries and silently averages two patients together.
 
     assert not np.isnan(X).any() and not np.isinf(X).any(), "NaN/Inf in X"
     # A single one turns the loss into NaN and destroys the whole network.
@@ -311,18 +321,20 @@ def save_split(name: str, records: list[str]) -> None:
     """
 
     print(f"\n[{name}] {len(records)} records")
-    X, y = process_split(records)
+    X, y, counts = process_split(records)
 
-    validate(X, y)
+    validate(X, y, counts)
     # Checks BEFORE saving: nothing invalid ever reaches the disk.
 
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     np.save(PROCESSED_DIR / f"X_{name}{SUFFIX}.npy", X)
     np.save(PROCESSED_DIR / f"y_{name}{SUFFIX}.npy", y)
+    np.save(PROCESSED_DIR / f"counts_{name}{SUFFIX}.npy", counts)
 
     print(f"  -> X_{name}{SUFFIX}.npy {X.shape}  apnea={y.mean():.3f}  "
           f"{X.nbytes / 1e6:.0f} MB")
-    print(f"  -> y_{name}{SUFFIX}.npy {y.shape}")
+    print(f"  -> y_{name}{SUFFIX}.npy {y.shape}  "
+          f"+ counts_{name}{SUFFIX}.npy ({len(counts)} records)")
     # Size is printed because raw ECG is bulky -- roughly 400 MB for the test
     # split, against 13 MB for the same minutes as an RR tachogram.
 
