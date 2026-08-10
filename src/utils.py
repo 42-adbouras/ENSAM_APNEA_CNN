@@ -55,6 +55,23 @@ RESULTS_ROOT = Path(os.environ.get("RESULTS_PATH", "results"))
 # DATA_ROOT: "results" locally, /results (the mounted volume) in Docker —
 # so nothing is written to the container's throwaway filesystem.
 
+PROCESSED_DIR = DATA_ROOT / "processed"
+# Where preprocess.py writes its arrays, kept apart from the raw WFDB
+# records download.py puts in data/apnea-ecg/.
+#
+# Defined HERE and nowhere else. It used to be spelled out in both
+# preprocess.py (as OUT_DIR) and model.py (as DATA_DIR): two files free
+# to disagree about where the data lives, which is exactly the kind of
+# drift the writer and the reader must never be able to have.
+
+SUFFIX = "_apnea"
+# Every file this pipeline writes carries it: X_train_apnea.npy, never
+# X_train.npy.
+#
+# The plain names belong to a separate RR-tachogram representation that
+# shares data/processed/. Keeping the suffix is what lets the two
+# coexist without either silently overwriting the other's results.
+
 FS = 100
 # Sampling rate of the Apnea-ECG dataset: 100 Hz
 # In other words 100 measurement points per second
@@ -233,3 +250,50 @@ def load_record(rec: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     # ann.sample    : annotation positions, as sample numbers
     # ann.symbol    : "A" / "N" symbols, converted to a numpy array
     #                 so that vectorised operations can be used later
+
+# ────────────────────────────────────────────────────────────────
+# PART 7 : READING BACK WHAT preprocess.py WROTE
+# ────────────────────────────────────────────────────────────────
+#
+# One split is two files on disk, and nothing else:
+#
+#   X_<split>_apnea.npy   (N, 6000) float32   the windows
+#   y_<split>_apnea.npy   (N,)      float32   0 = normal, 1 = apnea
+#
+# There is deliberately no third file saying which record each window
+# came from. Earlier versions carried one — first a records_ array with
+# one name per window, then a manifest listing each record and its
+# window count — to support per-record scoring.
+#
+# Both are gone, and so is per-record scoring. What that costs is real
+# and worth stating plainly: pooled averages hide the patients a model
+# fails on. The run that motivated the feature had a pooled AUC of 0.892
+# while its worst individual recording scored 0.165, far below chance on
+# somebody the device would have been worn by. Nothing in the pipeline
+# can surface that any more.
+#
+# This function lives in utils, not in the trainer, because the writer
+# (preprocess.py) and both readers (model.py, test.py) have to agree on
+# the layout exactly. One definition, so agreement is not a matter of
+# anyone remembering.
+
+
+def load_split(split: str) -> dict:
+    """One split -> {"X", "y"}."""
+    x_path = PROCESSED_DIR / f"X_{split}{SUFFIX}.npy"
+    y_path = PROCESSED_DIR / f"y_{split}{SUFFIX}.npy"
+
+    missing = [p.name for p in (x_path, y_path) if not p.exists()]
+    if missing:
+        raise SystemExit(f"missing {', '.join(missing)} in {PROCESSED_DIR}")
+        # A named error rather than the bare FileNotFoundError numpy would
+        # raise halfway through loading. That one says which file is absent
+        # but never that the fix is to regenerate the whole folder.
+
+    X = np.load(x_path)
+    y = np.load(y_path)
+
+    assert len(X) == len(y), \
+        f"{split}: X={len(X)} y={len(y)} disagree — data/processed is stale"
+
+    return {"X": X, "y": y}
