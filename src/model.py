@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import random
 
 import numpy as np
@@ -7,6 +8,7 @@ import tensorflow as tf
 from tensorflow.keras import layers
 from tensorflow.keras.models import Model
 
+import plots
 from utils import FS, RESULTS_ROOT, WINDOW_SAMPLES, load_split
 
 SEED = 42
@@ -39,6 +41,7 @@ AUG_SCALE_RANGE = (0.8, 1.25)
 AUG_NOISE_STD = 0.05
 
 MODEL_PATH = RESULTS_ROOT / "model.keras"
+HISTORY_PATH = RESULTS_ROOT / "history.json"
 
 
 def receptive_field() -> tuple[int, int]:
@@ -170,17 +173,25 @@ def train_dataset(X, y, seed: int):
     return ds.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
 
 
+class LearningRateLog(tf.keras.callbacks.Callback):
+    def on_epoch_end(self, epoch, logs=None):
+        if logs is not None:
+            logs["lr"] = float(tf.keras.backend.get_value(
+                self.model.optimizer.learning_rate))
+
+
 def main() -> None:
     RESULTS_ROOT.mkdir(parents=True, exist_ok=True)
 
     data = prepare()
     model = compile_model(build_model())
 
-    model.fit(
+    history = model.fit(
         train_dataset(data["X_tr"], data["y_tr"], SEED),
         validation_data=(data["X_val"], data["y_val"]),
         epochs=EPOCHS,
         callbacks=[
+            LearningRateLog(),
             tf.keras.callbacks.EarlyStopping(
                 monitor="val_auc", mode="max", patience=EARLY_STOP_PATIENCE,
                 restore_best_weights=True, verbose=1),
@@ -192,6 +203,14 @@ def main() -> None:
     )
 
     model.save(str(MODEL_PATH))
+
+    record = {k: [float(v) for v in vals]
+              for k, vals in history.history.items()}
+    HISTORY_PATH.write_text(json.dumps(record, indent=1))
+
+    print(f"  saved {MODEL_PATH}")
+    print(f"  saved {HISTORY_PATH}")
+    print(f"  saved {plots.plot_history(record)}")
 
 
 if __name__ == "__main__":

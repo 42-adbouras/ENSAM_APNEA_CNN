@@ -3,6 +3,7 @@
 !requirements.txt
 !src/modele_CNN_commente.py
 !src/model.py
+!src/plots.py
 !src/test.py
 !src/utils.py
 !src/preprocess.py

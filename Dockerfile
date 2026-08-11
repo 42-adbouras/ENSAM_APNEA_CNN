@@ -9,10 +9,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY src/model.py ./model.py
-COPY src/test.py ./test.py
-COPY src/download.py ./download.py
-COPY src/preprocess.py ./preprocess.py
-COPY src/utils.py ./utils.py
+COPY src/* .
 
 CMD ["bash"]
