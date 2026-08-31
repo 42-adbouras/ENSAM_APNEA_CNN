@@ -36,10 +36,6 @@ LEARNING_RATE = 1e-3
 EARLY_STOP_PATIENCE = 12
 REDUCE_LR_PATIENCE = 6
 
-AUGMENT = False
-AUG_SCALE_RANGE = (0.8, 1.25)
-AUG_NOISE_STD = 0.05
-
 MODEL_PATH = RESULTS_ROOT / "model.keras"
 HISTORY_PATH = RESULTS_ROOT / "history.json"
 
@@ -159,17 +155,9 @@ def prepare() -> dict:
     }
 
 
-def _augment(x, y):
-    x = x * tf.random.uniform([], *AUG_SCALE_RANGE)
-    x = x + tf.random.normal(tf.shape(x), stddev=AUG_NOISE_STD)
-    return x, y
-
-
 def train_dataset(X, y, seed: int):
     ds = tf.data.Dataset.from_tensor_slices((X, y))
     ds = ds.shuffle(len(y), seed=seed, reshuffle_each_iteration=True)
-    if AUGMENT:
-        ds = ds.map(_augment, num_parallel_calls=tf.data.AUTOTUNE)
     return ds.batch(BATCH_SIZE).prefetch(tf.data.AUTOTUNE)
 
 
@@ -186,6 +174,8 @@ def main() -> None:
     data = prepare()
     model = compile_model(build_model())
 
+    # model.summary()
+
     history = model.fit(
         train_dataset(data["X_tr"], data["y_tr"], SEED),
         validation_data=(data["X_val"], data["y_val"]),
@@ -199,7 +189,7 @@ def main() -> None:
                 monitor="val_auc", mode="max", factor=0.5,
                 patience=REDUCE_LR_PATIENCE, min_lr=1e-6, verbose=1),
         ],
-        verbose=1,
+        verbose=2,
     )
 
     model.save(str(MODEL_PATH))
@@ -208,9 +198,11 @@ def main() -> None:
               for k, vals in history.history.items()}
     HISTORY_PATH.write_text(json.dumps(record, indent=1))
 
+    prob_val = model.predict(data["X_val"], verbose=0).ravel()
+
     print(f"  saved {MODEL_PATH}")
     print(f"  saved {HISTORY_PATH}")
-    print(f"  saved {plots.plot_history(record)}")
+    print(f"  saved {plots.plot_history(record, (data['y_val'], prob_val))}")
 
 
 if __name__ == "__main__":
