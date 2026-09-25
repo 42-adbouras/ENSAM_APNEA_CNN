@@ -1,6 +1,7 @@
 *
 
 !src/
+!src/model.ipynb
 !*.py
 !results/
 
