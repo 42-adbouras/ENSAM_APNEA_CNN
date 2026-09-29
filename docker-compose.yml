@@ -1,15 +1,17 @@
 services:
-  apnea_cnn:
-    image: apnea-cnn:0.1
-    container_name: apnea_cnn
-    env_file:
-      - .env
+  inference:
+    image: apnea-inference:0.1
+    container_name: apnea_inference
     build:
-      context: .
+      context: ./inference
     ports:
-      - "8888:8888"
+      - "8000:8000"
+    environment:
+      MODEL_PATH: /models/model_int8.tflite
+      DATA_DIR: /data/apnea-ecg
+      PATIENTS_DIR: /patients
+      RECORDING_FS: 100
     volumes:
-      - ./data:/data
-      - ./results:/results
-    stdin_open: true
-    tty: true
+      - ./results:/models
+      - ./data/apnea-ecg:/data/apnea-ecg
+      - ./inference/data/patients:/patients
