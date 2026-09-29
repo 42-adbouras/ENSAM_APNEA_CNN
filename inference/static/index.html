@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apnea review</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M2 12h4l2-5 4 10 2-5h8' fill='none' stroke='%230e7c72' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #e2e5ea;
+    --text: #16191d;
+    --muted: #5d6875;
+    --accent: #0e7c72;
+    --accent-soft: #e3f3f1;
+    --track: #eceef1;
+    --hover: #f0f2f5;
+    --danger: #b42318;
+    --series: #00897b;
+    --apnea: #d03b3b;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #0f1215;
+      --surface: #171b1f;
+      --border: #2a3037;
+      --text: #e7eaee;
+      --muted: #9aa4b0;
+      --accent: #3cc5b5;
+      --accent-soft: #15302d;
+      --track: #252b31;
+      --hover: #1e2329;
+      --danger: #f08a80;
+      --series: #26a69a;
+    }
+  }
+  /* --series and --apnea are the chart's two data colours, checked together for colour-blind
+     separation and contrast on each theme's surface. --apnea is the same in both themes. */
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.45; }
+  code { font-family: var(--mono); font-size: 0.92em; background: var(--track); padding: 1px 5px; border-radius: 4px; }
+
+  .top {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 24px; background: var(--surface); border-bottom: 1px solid var(--border);
+  }
+  .top svg { width: 22px; height: 22px; color: var(--accent); flex: none; }
+  .brand { font-weight: 650; letter-spacing: -0.01em; color: inherit; text-decoration: none; }
+  .tagline { color: var(--muted); font-size: 14px; }
+
+  .layout {
+    display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 24px; align-items: start;
+    max-width: 1180px; margin: 0 auto; padding: 24px;
+  }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+
+  aside.panel {
+    position: sticky; top: 24px; display: flex; flex-direction: column;
+    max-height: calc(100vh - 110px);
+  }
+  .panel-head { display: flex; align-items: baseline; justify-content: space-between; padding: 16px 16px 10px; }
+  .label {
+    margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .count { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .filter {
+    margin: 0 12px 8px; padding: 8px 10px; font: inherit; color: var(--text);
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  }
+  .filter:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+  #patient-list { list-style: none; margin: 0; padding: 0 8px 8px; overflow-y: auto; }
+  .patient {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px;
+    padding: 10px; border-radius: 8px; color: inherit; text-decoration: none;
+  }
+  .patient:hover { background: var(--hover); }
+  .patient:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .patient[aria-current="page"] { background: var(--accent-soft); }
+  .patient[aria-current="page"] .patient-id { color: var(--accent); }
+  .patient-id { grid-column: 1; font-weight: 600; overflow-wrap: anywhere; }
+  .patient-sub { grid-column: 1; font-size: 13px; color: var(--muted); }
+  .badge {
+    grid-column: 2; grid-row: 1 / span 2; align-self: center;
+    min-width: 26px; padding: 2px 8px; border-radius: 999px; text-align: center;
+    font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+    background: var(--track); color: var(--muted);
+  }
+  .empty { padding: 12px 10px; font-size: 14px; color: var(--muted); }
+  .error { color: var(--danger); }
+  .muted { color: var(--muted); }
+
+  #detail { padding: 24px 28px; min-height: 320px; }
+  h1 { margin: 4px 0 0; font-size: 26px; letter-spacing: -0.015em; overflow-wrap: anywhere; }
+  .stats { display: flex; flex-wrap: wrap; gap: 12px 40px; margin: 18px 0 24px; }
+  .stats dt { font-size: 13px; color: var(--muted); }
+  .stats dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
+  .stats .sub { font-size: 13px; font-weight: 400; color: var(--muted); }
+
+  .night { border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .night + .night { margin-top: 12px; }
+  .night-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+  .night-title { margin: 0; font-size: 16px; font-weight: 600; }
+  .night-meta { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+  .file { font-family: var(--mono); font-size: 12.5px; background: none; padding: 0; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 7px 16px; font: inherit; font-size: 14px; font-weight: 600;
+    color: var(--accent); background: transparent; border: 1px solid var(--accent); border-radius: 8px;
+    cursor: pointer;
+  }
+  .btn:hover:not(:disabled) { background: var(--accent-soft); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn:disabled { cursor: progress; opacity: 0.75; }
+  .spinner {
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 2px solid currentColor; border-right-color: transparent;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } }
+
+  .result { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .result .stats { margin: 0 0 14px; }
+  .result .stats dd { font-size: 20px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); }
+  .legend li { display: inline-flex; align-items: center; gap: 7px; }
+  .key-apnea { width: 12px; height: 8px; border-radius: 2px; background: var(--apnea); }
+  .key-line { width: 16px; height: 2px; border-radius: 1px; background: var(--series); }
+  .key-threshold { width: 16px; border-top: 1px dashed var(--muted); }
+
+  .chart { position: relative; margin-top: 8px; }
+  .chart svg { display: block; overflow: visible; }
+  .chart svg:focus { outline: none; }
+  .chart svg:focus-visible .frame { stroke: var(--accent); }
+  .frame { fill: none; stroke: transparent; }
+  .c-track { fill: var(--track); }
+  .c-apnea { fill: var(--apnea); }
+  .c-grid { stroke: var(--border); stroke-width: 1; }
+  .c-threshold { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 3; }
+  .c-area { fill: var(--series); fill-opacity: 0.1; }
+  .c-line { fill: none; stroke: var(--series); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .c-tick { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .c-cross { stroke: var(--muted); stroke-width: 1; }
+  .c-dot { fill: var(--series); stroke: var(--surface); stroke-width: 2; }
+  .tip {
+    position: absolute; z-index: 1; pointer-events: none; white-space: nowrap;
+    padding: 7px 10px; font-size: 13px; line-height: 1.5;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  }
+  .tip strong { font-size: 15px; }
+  .tip .row { display: flex; align-items: center; gap: 7px; }
+
+  details.periods { margin-top: 10px; font-size: 13px; }
+  details.periods summary { cursor: pointer; color: var(--muted); }
+  details.periods table { margin-top: 8px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  details.periods th, details.periods td { padding: 4px 18px 4px 0; text-align: left; }
+  details.periods th { font-weight: 600; color: var(--muted); }
+  .note { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+
+  .placeholder { padding: 56px 8px; text-align: center; color: var(--muted); }
+  .placeholder p { margin: 0; }
+  .placeholder .title { margin-bottom: 6px; font-size: 17px; font-weight: 600; color: var(--text); }
+
+  @media (max-width: 760px) {
+    .top { padding: 12px 16px; }
+    .tagline { display: none; }
+    .layout { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 16px; }
+    aside.panel { position: static; max-height: 45vh; }
+    #detail { padding: 18px 16px; }
+    .night { padding: 14px; }
+    .result .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12h4l2-5 4 10 2-5h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <a class="brand" href="/" data-internal>Apnea review</a>
+  <span class="tagline">Overnight ECG recordings</span>
+</header>
+
+<main class="layout">
+  <aside class="panel" aria-label="Patients">
+    <div class="panel-head">
+      <h2 class="label">Patients</h2>
+      <span class="count" id="patient-count"></span>
+    </div>
+    <input class="filter" id="filter" type="search" placeholder="Filter patients" autocomplete="off">
+    <ul id="patient-list"></ul>
+  </aside>
+  <section class="panel" id="detail" aria-live="polite"></section>
+</main>
+
+<script>
+const list = document.getElementById("patient-list");
+const detail = document.getElementById("detail");
+const filter = document.getElementById("filter");
+const countLabel = document.getElementById("patient-count");
+
+let patients = [];
+let patientsError = null;
+let latestRequest = 0;
+
+const analyses = new Map();
+// Results by patient and night, kept for as long as the page is open, so switching patients and
+// coming back does not lose them. Nothing is stored on the server.
+const analysisKey = (patient, file) => `${patient}/${file}`;
+
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
+  node.append(...children.filter(child => child !== null && child !== undefined));
+  return node;
+}
+// Every name shown here is a folder or file name from disk. append() inserts strings as text,
+// never as HTML, so a file called "<img onerror=...>.csv" is displayed, not executed.
+
+function svg(tag, attrs = {}) {
+  const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
+  return node;
+}
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+function formatDuration(seconds) {
+  const minutes = Math.round(seconds / 60);
+  const h = Math.floor(minutes / 60), m = minutes % 60;
+  return h ? `${h} h ${String(m).padStart(2, "0")} min` : `${m} min`;
+}
+
+const formatClock = minute => `${Math.floor(minute / 60)}:${String(minute % 60).padStart(2, "0")}`;
+// Time since the recording started, as h:mm. The file holds samples, not clock times, so this is
+// the only time axis a night has.
+
+function formatSize(bytes) {
+  if (bytes < 1e3) return `${bytes} B`;
+  if (bytes < 1e6) return `${Math.round(bytes / 1e3)} kB`;
+  return `${(bytes / 1e6).toFixed(1)} MB`;
+}
+
+async function getJSON(url, options) {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.detail || `${response.status} ${response.statusText}`);
+  }
+  return response.json();
+}
+
+// ── routing ────────────────────────────────────────────────────────────────
+
+const patientPath = id => `/patient/${encodeURIComponent(id)}`;
+
+function selectedId() {
+  const match = location.pathname.match(/^\/patient\/([^/]+)$/);
+  if (!match) return null;
+  try { return decodeURIComponent(match[1]); } catch { return null; }
+}
+// The selected patient is the page's own path, /patient/<id>. The server answers that path with
+// this same page, so a reload, a bookmark or a pasted link opens on the same patient.
+
+function navigate(event) {
+  const link = event.target.closest("a[data-internal]");
+  if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  if (link.getAttribute("href") !== location.pathname) history.pushState(null, "", link.getAttribute("href"));
+  route();
+}
+// A plain click changes the address without reloading the page (history.pushState), so the
+// patient list and results already computed stay in place. A click with a modifier key is left
+// to the browser: Cmd or Ctrl opens the patient in a new tab, which the server can serve.
+
+// ── patient list ───────────────────────────────────────────────────────────
+
+function renderPatients() {
+  const query = filter.value.trim().toLowerCase();
+  const current = selectedId();
+  countLabel.textContent = patients.length || "";
+
+  if (patientsError) {
+    list.replaceChildren(el("li", { class: "empty error" }, `Could not load patients: ${patientsError}`));
+    return;
+  }
+  const shown = patients.filter(p => p.id.toLowerCase().includes(query));
+  if (!shown.length) {
+    list.replaceChildren(el("li", { class: "empty" }, patients.length ? "No patient matches." : "No patients yet."));
+    return;
+  }
+  list.replaceChildren(...shown.map(p => {
+    const link = el("a", { class: "patient", href: patientPath(p.id), "data-internal": "" },
+      el("span", { class: "patient-id" }, p.id),
+      el("span", { class: "badge", title: plural(p.nights, "night") }, String(p.nights)),
+      el("span", { class: "patient-sub" },
+        p.latest_night === null ? "No nights yet" : `Latest: Night ${p.latest_night}`));
+    if (p.id === current) link.setAttribute("aria-current", "page");
+    return el("li", {}, link);
+  }));
+}
+
+function placeholder(title, ...body) {
+  return el("div", { class: "placeholder" },
+    el("p", { class: "title" }, title),
+    body.length ? el("p", {}, ...body) : null);
+}
+
+const stat = (label, value, sub) =>
+  el("div", {}, el("dt", {}, label), el("dd", {}, value, sub ? " " : null, sub ? el("span", { class: "sub" }, sub) : null));
+// The space is a real character, not a CSS margin, so a screen reader says "378 of 522", not "378of".
+
+// ── one patient's nights ───────────────────────────────────────────────────
+
+function renderNights({ patient, nights }) {
+  const recorded = nights.reduce((sum, night) => sum + night.duration_s, 0);
+
+  const head = el("header", {},
+    el("p", { class: "label" }, "Patient"),
+    el("h1", {}, patient),
+    el("dl", { class: "stats" },
+      stat("Nights", String(nights.length)),
+      stat("Recorded", formatDuration(recorded))));
+
+  if (!nights.length) {
+    detail.replaceChildren(head, placeholder("No nights for this patient",
+      "Nights are files named ", el("code", {}, "NIGHT001.CSV"), ", ", el("code", {}, "NIGHT002.CSV"),
+      " and so on, in this patient's folder."));
+    return;
+  }
+  detail.replaceChildren(head, ...nights.map(night => nightCard(patient, night)));
+}
+
+function nightCard(patient, night) {
+  const button = el("button", { class: "btn", type: "button" }, "Analyse");
+  const slot = el("div", {});
+  const card = el("article", { class: "night" },
+    el("div", { class: "night-head" },
+      el("div", {},
+        el("h3", { class: "night-title" }, `Night ${night.number}`),
+        el("p", { class: "night-meta" },
+          el("code", { class: "file" }, night.file),
+          ` · ${formatDuration(night.duration_s)} · ${formatSize(night.size_bytes)}`)),
+      button),
+    slot);
+
+  const key = analysisKey(patient, night.file);
+  const show = result => {
+    button.remove();
+    slot.replaceChildren(resultView(result));
+  };
+  if (analyses.has(key)) show(analyses.get(key));
+
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    button.replaceChildren(el("span", { class: "spinner", "aria-hidden": "true" }), "Analysing…");
+    slot.replaceChildren();
+    try {
+      const url = `/api/patients/${encodeURIComponent(patient)}/nights/${encodeURIComponent(night.file)}/analysis`;
+      const result = await getJSON(url, { method: "POST" });
+      analyses.set(key, result);
+      show(result);
+    } catch (error) {
+      button.disabled = false;
+      button.replaceChildren("Analyse");
+      slot.replaceChildren(el("p", { class: "note error" }, `Analysis failed: ${error.message}`));
+    }
+  });
+  // A result that arrives after the doctor has moved to another patient still goes into
+  // `analyses`, so it is there when they come back; show() then draws into a detached card.
+  return card;
+}
+
+// ── one night's result ─────────────────────────────────────────────────────
+
+function apneaPeriods(apnea) {
+  const periods = [];
+  let start = null;
+  apnea.forEach((flagged, i) => {
+    if (flagged && start === null) start = i;
+    if (!flagged && start !== null) { periods.push({ start, length: i - start }); start = null; }
+  });
+  if (start !== null) periods.push({ start, length: apnea.length - start });
+  return periods;
+}
+// Runs of consecutive flagged minutes. They are the model's periods, not clinical apnea events,
+// which are scored breath by breath and last from 10 s.
+
+function resultView(r) {
+  const periods = apneaPeriods(r.apnea);
+  const longest = Math.max(0, ...periods.map(p => p.length));
+  const chart = el("div", { class: "chart" });
+
+  const view = el("div", { class: "result" },
+    el("dl", { class: "stats" },
+      stat("Apnea minutes", String(r.summary.apnea_minutes), `of ${r.minutes}`),
+      stat("Minutes per hour", r.summary.apnea_minutes_per_hour.toFixed(1)),
+      stat("Flagged periods", String(periods.length)),
+      stat("Longest period", periods.length ? `${longest} min` : "None")),
+    el("ul", { class: "legend" },
+      el("li", {}, el("span", { class: "key-apnea" }), "Flagged as apnea"),
+      el("li", {}, el("span", { class: "key-line" }), `Apnea probability, ${r.smooth_window}-minute average`),
+      el("li", {}, el("span", { class: "key-threshold" }), `Threshold ${r.threshold}`)),
+    chart,
+    periods.length ? periodsTable(periods) : null);
+
+  let drawnWidth = 0;
+  new ResizeObserver(() => {
+    if (chart.clientWidth && chart.clientWidth !== drawnWidth) {
+      drawnWidth = chart.clientWidth;
+      drawChart(chart, r);
+    }
+  }).observe(chart);
+  // The chart is drawn at its real pixel width, so its text stays at its real size on a phone.
+  // The observer draws it once the card is on screen and again whenever the width changes.
+  return view;
+}
+
+function periodsTable(periods) {
+  return el("details", { class: "periods" },
+    el("summary", {}, `List the ${plural(periods.length, "flagged period")}`),
+    el("table", {},
+      el("thead", {}, el("tr", {}, el("th", {}, "Start"), el("th", {}, "End"), el("th", {}, "Length"))),
+      el("tbody", {}, ...periods.map(p => el("tr", {},
+        el("td", {}, formatClock(p.start)),
+        el("td", {}, formatClock(p.start + p.length)),
+        el("td", {}, `${p.length} min`))))));
+  // The table carries what the red strip shows, for a reader who cannot see or hover the chart.
+}
+
+function drawChart(container, r) {
+  const n = r.minutes;
+  const width = container.clientWidth;
+  const m = { top: 2, right: 6, bottom: 22, left: 30 };
+  const stripH = 10, gap = 12, plotH = 110;
+  const plotTop = m.top + stripH + gap;
+  const height = plotTop + plotH + m.bottom;
+  const plotW = width - m.left - m.right;
+
+  const xAt = minute => m.left + minute * plotW / n;
+  const yAt = p => plotTop + (1 - p) * plotH;
+  const centre = i => xAt(i + 0.5);
+
+  const root = svg("svg", {
+    width, height, viewBox: `0 0 ${width} ${height}`, role: "img", tabindex: "0",
+    "aria-label": `Apnea probability for each of ${n} minutes, ${r.summary.apnea_minutes} flagged. ` +
+                  "Use the arrow keys to read minute by minute.",
+  });
+  root.append(svg("rect", { class: "frame", x: 0.5, y: 0.5, width: width - 1, height: height - 1, rx: 4 }));
+
+  root.append(svg("rect", { class: "c-track", x: m.left, y: m.top, width: plotW, height: stripH, rx: 2 }));
+  for (const p of apneaPeriods(r.apnea)) {
+    root.append(svg("rect", { class: "c-apnea", x: xAt(p.start), y: m.top, width: Math.max(1, p.length * plotW / n), height: stripH }));
+  }
+
+  for (const p of [0, 0.5, 1]) {
+    root.append(svg("line", { class: "c-grid", x1: m.left, x2: m.left + plotW, y1: yAt(p), y2: yAt(p) }));
+    const tick = svg("text", { class: "c-tick", x: m.left - 8, y: yAt(p), "text-anchor": "end", "dominant-baseline": "middle" });
+    tick.textContent = String(p);
+    root.append(tick);
+  }
+
+  const points = r.prob_smoothed.map((p, i) => `${centre(i).toFixed(1)},${yAt(p).toFixed(1)}`);
+  root.append(svg("path", { class: "c-area", d: `M${centre(0)},${yAt(0)}L${points.join("L")}L${centre(n - 1)},${yAt(0)}Z` }));
+  root.append(svg("line", { class: "c-threshold", x1: m.left, x2: m.left + plotW, y1: yAt(r.threshold), y2: yAt(r.threshold) }));
+  root.append(svg("path", { class: "c-line", d: `M${points.join("L")}` }));
+
+  const hours = Math.floor(n / 60);
+  const step = plotW / (n / 60) < 36 ? 2 : 1;
+  for (let h = 0; h <= hours; h += step) {
+    const tick = svg("text", { class: "c-tick", x: xAt(h * 60), y: height - 6, "text-anchor": h === 0 ? "start" : "middle" });
+    tick.textContent = `${h} h`;
+    root.append(tick);
+  }
+
+  const cross = svg("line", { class: "c-cross", y1: m.top, y2: plotTop + plotH, visibility: "hidden" });
+  const dot = svg("circle", { class: "c-dot", r: 4, visibility: "hidden" });
+  const hit = svg("rect", { x: m.left, y: 0, width: plotW, height: plotTop + plotH, fill: "transparent" });
+  root.append(cross, dot, hit);
+  const tip = el("div", { class: "tip", hidden: "" });
+
+  let current = null;
+  const show = i => {
+    current = Math.max(0, Math.min(n - 1, i));
+    const x = centre(current), p = r.prob_smoothed[current];
+    cross.setAttribute("x1", x);
+    cross.setAttribute("x2", x);
+    dot.setAttribute("cx", x);
+    dot.setAttribute("cy", yAt(p));
+    cross.setAttribute("visibility", "visible");
+    dot.setAttribute("visibility", "visible");
+    tip.replaceChildren(
+      el("div", { class: "row" }, el("span", { class: "key-line" }), el("strong", {}, p.toFixed(2)), "probability"),
+      el("div", { class: "row" }, r.apnea[current] ? el("span", { class: "key-apnea" }) : null,
+        r.apnea[current] ? "Flagged as apnea" : "Not flagged"),
+      el("div", { class: "muted" }, `Minute ${current + 1}, at ${formatClock(current)}`));
+    tip.hidden = false;
+    const left = x + 14 + tip.offsetWidth > width ? x - 14 - tip.offsetWidth : x + 14;
+    tip.style.left = `${Math.max(0, left)}px`;
+    tip.style.top = `${plotTop}px`;
+  };
+  const hide = () => {
+    cross.setAttribute("visibility", "hidden");
+    dot.setAttribute("visibility", "hidden");
+    tip.hidden = true;
+  };
+
+  hit.addEventListener("pointermove", event => {
+    show(Math.floor((event.clientX - root.getBoundingClientRect().left - m.left) / plotW * n));
+  });
+  hit.addEventListener("pointerleave", hide);
+  root.addEventListener("focus", () => show(current ?? 0));
+  root.addEventListener("blur", hide);
+  root.addEventListener("keydown", event => {
+    const moves = { ArrowRight: 1, ArrowLeft: -1, Home: -n, End: n };
+    if (!(event.key in moves)) return;
+    event.preventDefault();
+    show((current ?? 0) + moves[event.key] * (event.shiftKey ? 10 : 1));
+  });
+  // The pointer snaps to the nearest minute anywhere over the strip or the plot, so nobody has to
+  // land on a 2 px line. The keyboard reads the same values: arrows move one minute, Shift ten.
+
+  container.replaceChildren(root, tip);
+}
+
+// ── page ───────────────────────────────────────────────────────────────────
+
+async function route() {
+  renderPatients();
+  const id = selectedId();
+  document.title = id ? `${id} · Apnea review` : "Apnea review";
+
+  if (id === null) {
+    if (patientsError) detail.replaceChildren(placeholder("Could not load patients", patientsError));
+    else if (patients.length) detail.replaceChildren(placeholder("Select a patient", "Their recorded nights will be listed here."));
+    else detail.replaceChildren(placeholder("No patients yet",
+      "Copy each patient's recordings into ", el("code", {}, "inference/data/patients/<patient>/"),
+      ", as ", el("code", {}, "NIGHT001.CSV"), ", ", el("code", {}, "NIGHT002.CSV"),
+      " and so on, then reload this page."));
+    return;
+  }
+
+  const request = ++latestRequest;
+  detail.replaceChildren(placeholder("Loading nights…"));
+  try {
+    const data = await getJSON(`/api/patients/${encodeURIComponent(id)}`);
+    if (request === latestRequest) renderNights(data);
+  } catch (error) {
+    if (request === latestRequest) detail.replaceChildren(placeholder(`Could not open ${id}`, error.message));
+  }
+  // Clicking two patients quickly starts two requests that can finish in either order. Only the
+  // most recent one is allowed to draw, so the page never shows one patient under another's name.
+}
+
+async function start() {
+  try {
+    patients = await getJSON("/api/patients");
+  } catch (error) {
+    patientsError = error.message;
+  }
+  document.addEventListener("click", navigate);
+  filter.addEventListener("input", renderPatients);
+  window.addEventListener("popstate", route);
+  route();
+}
+
+start();
+</script>
+</body>
+</html>

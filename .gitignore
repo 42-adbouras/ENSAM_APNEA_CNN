@@ -2,8 +2,25 @@
 
 !src/
 !src/model.ipynb
-!*.py
 !results/
+
+!inference/
+!inference/data/
+!inference/data/models/
+!inference/data/patients/
+!inference/data/patients/patient_1/
+!inference/data/patients/patient_2/
+!inference/data/patients/patient_3/
+!inference/data/patients/*/NIGHT*.CSV
+!inference/data/models/*.tflite
+!inference/static/
+
+!inference/Dockerfile
+!inference/app.py
+!inference/patients.py
+!inference/pipeline.py
+!inference/requirements.txt
+!inference/static/index.html
 
 !docker-compose.yml
 !Dockerfile

@@ -66,7 +66,8 @@ ENSAM_APNEA_CNN/
     ├── model.keras          # trained Keras model
     ├── history.json         # loss and metrics for every epoch
     ├── training_curves.png  # training figure
-    └── model_int8.tflite    # int8 model for the ESP32-S3
+    ├── model_int8.tflite    # int8 model for the ESP32-S3
+    └── model_float32.tflite # the same model unquantised, float32 throughout
 ```
 
 ---
@@ -164,11 +165,13 @@ validation precision and recall, validation ROC curve). Training again overwrite
 
 ### TensorFlow Lite conversion
 
-Converts `model.keras` into `model_int8.tflite`:
+Converts `model.keras` into two TFLite files, both with a **fixed input shape** `(1, 6000, 1)`
+(a microcontroller allocates all its memory up front):
 
-- **fixed input shape** `(1, 6000, 1)`: a microcontroller allocates all its memory up front;
-- **full int8**: weights, activations, input and output. The int8 ranges are calibrated on 500
-  real training windows;
+- `model_int8.tflite` (124.5 KB), **full int8**: weights, activations, input and output. The
+  int8 ranges are calibrated on 500 real training windows;
+- `model_float32.tflite` (295.8 KB), **unquantised**: float32 throughout, so it computes what
+  `model.keras` computes. It takes the z-scored window and returns the probability directly.
 
 ### Test set
 

@@ -12,6 +12,6 @@ services:
       PATIENTS_DIR: /patients
       RECORDING_FS: 100
     volumes:
-      - ./results:/models
+      - ./inference/data/models:/models
       - ./data/apnea-ecg:/data/apnea-ecg
       - ./inference/data/patients:/patients
