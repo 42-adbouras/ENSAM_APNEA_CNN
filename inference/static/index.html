@@ -15,6 +15,7 @@
     --muted: #5d6875;
     --accent: #0e7c72;
     --accent-soft: #e3f3f1;
+    --on-accent: #ffffff;
     --track: #eceef1;
     --hover: #f0f2f5;
     --danger: #b42318;
@@ -33,18 +34,18 @@
       --muted: #9aa4b0;
       --accent: #3cc5b5;
       --accent-soft: #15302d;
+      --on-accent: #0f1215;
       --track: #252b31;
       --hover: #1e2329;
       --danger: #f08a80;
       --series: #26a69a;
     }
   }
-  /* --series and --apnea are the chart's two data colours, checked together for colour-blind
-     separation and contrast on each theme's surface. --apnea is the same in both themes. */
 
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.45; }
   code { font-family: var(--mono); font-size: 0.92em; background: var(--track); padding: 1px 5px; border-radius: 4px; }
+  h1[tabindex]:focus { outline: none; }
 
   .top {
     display: flex; align-items: center; gap: 10px;
@@ -98,28 +99,79 @@
   .muted { color: var(--muted); }
 
   #detail { padding: 24px 28px; min-height: 320px; }
-  h1 { margin: 4px 0 0; font-size: 26px; letter-spacing: -0.015em; overflow-wrap: anywhere; }
-  .stats { display: flex; flex-wrap: wrap; gap: 12px 40px; margin: 18px 0 24px; }
+  #detail[aria-busy="true"] > * { opacity: 0.55; transition: opacity 0.15s; }
+  h1 { margin: 0; font-size: 26px; letter-spacing: -0.015em; overflow-wrap: anywhere; }
+
+  .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 12px; font-size: 14px; color: var(--muted); }
+  .crumbs a { color: var(--accent); text-decoration: none; }
+  .crumbs a:hover { text-decoration: underline; }
+  .crumbs [aria-current] { color: var(--text); }
+
+  .page-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 16px; }
+  .pager { display: flex; gap: 8px; }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 12px 40px; margin: 18px 0 20px; }
   .stats dt { font-size: 13px; color: var(--muted); }
   .stats dd { margin: 2px 0 0; font-size: 18px; font-weight: 600; }
   .stats .sub { font-size: 13px; font-weight: 400; color: var(--muted); }
 
+  ol.steps { list-style: none; counter-reset: step; display: grid; gap: 12px; margin: 12px 0 0; padding: 0; }
+  ol.steps li { counter-increment: step; display: flex; align-items: flex-start; gap: 12px; }
+  ol.steps li::before {
+    content: counter(step); flex: none; display: grid; place-items: center;
+    width: 26px; height: 26px; border-radius: 50%;
+    font-size: 13px; font-weight: 600; color: var(--accent); background: var(--accent-soft);
+  }
+
+  .model-bar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+    margin: 20px 0 16px; padding: 12px 14px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+  }
+  .model-bar label { font-size: 14px; color: var(--muted); }
+  .model-bar .muted { font-size: 13px; }
+  .model-bar .btn { margin-left: auto; }
+  .select {
+    min-width: 0; max-width: 100%; padding: 7px 10px; font: inherit; font-size: 14px; color: var(--text);
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  }
+  .select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
   .night { border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
   .night + .night { margin-top: 12px; }
-  .night-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+  .night-link {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "info result chevron";
+    align-items: center; gap: 8px 18px; color: inherit; text-decoration: none;
+  }
+  .night-link:hover { background: var(--hover); }
+  .night-link:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .night-info { grid-area: info; min-width: 0; }
   .night-title { margin: 0; font-size: 16px; font-weight: 600; }
   .night-meta { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
   .file { font-family: var(--mono); font-size: 12.5px; background: none; padding: 0; }
+  .night-result { grid-area: result; display: flex; align-items: center; gap: 10px; font-size: 14px; }
+  .chevron { grid-area: chevron; font-size: 24px; line-height: 1; color: var(--muted); }
+  .rate { min-width: 5.6em; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .rate-unit { font-size: 13px; font-weight: 400; color: var(--muted); }
+  .rate-bar { width: 90px; height: 6px; border-radius: 3px; background: var(--track); overflow: hidden; }
+  .rate-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--apnea); }
 
   .btn {
     display: inline-flex; align-items: center; gap: 8px;
-    padding: 7px 16px; font: inherit; font-size: 14px; font-weight: 600;
+    padding: 7px 16px; font: inherit; font-size: 14px; font-weight: 600; text-decoration: none;
     color: var(--accent); background: transparent; border: 1px solid var(--accent); border-radius: 8px;
-    cursor: pointer;
+    cursor: pointer; white-space: nowrap;
   }
   .btn:hover:not(:disabled) { background: var(--accent-soft); }
   .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .btn:disabled { cursor: progress; opacity: 0.75; }
+  .btn:disabled { cursor: not-allowed; opacity: 0.6; }
+  .btn.busy:disabled { cursor: progress; opacity: 0.85; }
+  .btn-primary { color: var(--on-accent); background: var(--accent); }
+  .btn-primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.1); }
+  .btn-ghost { padding: 6px 12px; font-weight: 500; color: var(--text); border-color: var(--border); }
+  .btn-ghost:hover:not(:disabled) { background: var(--hover); }
+  .btn-ghost[aria-disabled="true"] { opacity: 0.45; cursor: default; }
+  .btn-ghost[aria-disabled="true"]:hover { background: transparent; }
   .spinner {
     width: 12px; height: 12px; border-radius: 50%;
     border: 2px solid currentColor; border-right-color: transparent;
@@ -128,9 +180,10 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } }
 
-  .result { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .result { padding-top: 16px; border-top: 1px solid var(--border); }
   .result .stats { margin: 0 0 14px; }
   .result .stats dd { font-size: 20px; }
+  .result-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
   .legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); }
   .legend li { display: inline-flex; align-items: center; gap: 7px; }
   .key-apnea { width: 12px; height: 8px; border-radius: 2px; background: var(--apnea); }
@@ -165,7 +218,7 @@
   details.periods table { margin-top: 8px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   details.periods th, details.periods td { padding: 4px 18px 4px 0; text-align: left; }
   details.periods th { font-weight: 600; color: var(--muted); }
-  .note { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+  .note { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
 
   .placeholder { padding: 56px 8px; text-align: center; color: var(--muted); }
   .placeholder p { margin: 0; }
@@ -176,13 +229,24 @@
     .tagline { display: none; }
     .layout { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 16px; }
     aside.panel { position: static; max-height: 45vh; }
+    body:not([data-view="home"]) aside.panel { display: none; }
     #detail { padding: 18px 16px; }
     .night { padding: 14px; }
+    .night-link { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "info chevron" "result chevron"; }
+    .night-result { justify-self: start; }
+    .rate { min-width: 0; text-align: left; }
     .result .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+  }
+
+  @media print {
+    .top, aside.panel, .crumbs, .pager, .model-bar, .result-actions, details.periods summary { display: none !important; }
+    body { background: #ffffff; }
+    .layout { display: block; padding: 0; }
+    .panel { border: none; }
   }
 </style>
 </head>
-<body>
+<body data-view="home">
 <header class="top">
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12h4l2-5 4 10 2-5h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
   <a class="brand" href="/" data-internal>Apnea review</a>
@@ -209,12 +273,16 @@ const countLabel = document.getElementById("patient-count");
 
 let patients = [];
 let patientsError = null;
-let latestRequest = 0;
 
-const analyses = new Map();
-// Results by patient and night, kept for as long as the page is open, so switching patients and
-// coming back does not lose them. Nothing is stored on the server.
-const analysisKey = (patient, file) => `${patient}/${file}`;
+let models = [];            // [{name, size_bytes, threshold}] from /api/models
+let modelsError = null;
+let defaultModel = null;    // the model MODEL_PATH names
+let chosenModel = null;     // the dropdown's value, shared by the patient and night pages
+
+let view = 0;               // incremented on every navigation; work started for an older view does not draw
+let pager = { prev: null, next: null };   // the open night's neighbours, for the arrow keys
+
+const RATE_SCALE = 60;      // minutes per hour at a full bar
 
 function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
@@ -222,8 +290,7 @@ function el(tag, attrs = {}, ...children) {
   node.append(...children.filter(child => child !== null && child !== undefined));
   return node;
 }
-// Every name shown here is a folder or file name from disk. append() inserts strings as text,
-// never as HTML, so a file called "<img onerror=...>.csv" is displayed, not executed.
+// append() inserts strings as text nodes, never as HTML.
 
 function svg(tag, attrs = {}) {
   const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
@@ -232,6 +299,7 @@ function svg(tag, attrs = {}) {
 }
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const spinner = () => el("span", { class: "spinner", "aria-hidden": "true" });
 
 function formatDuration(seconds) {
   const minutes = Math.round(seconds / 60);
@@ -240,8 +308,7 @@ function formatDuration(seconds) {
 }
 
 const formatClock = minute => `${Math.floor(minute / 60)}:${String(minute % 60).padStart(2, "0")}`;
-// Time since the recording started, as h:mm. The file holds samples, not clock times, so this is
-// the only time axis a night has.
+// Minutes since the start of the recording, as h:mm.
 
 function formatSize(bytes) {
   if (bytes < 1e3) return `${bytes} B`;
@@ -253,39 +320,148 @@ async function getJSON(url, options) {
   const response = await fetch(url, options);
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.detail || `${response.status} ${response.statusText}`);
+    const error = new Error(body.detail || `${response.status} ${response.statusText}`);
+    error.status = response.status;
+    throw error;
   }
   return response.json();
 }
 
+const modelQuery = model => (model ? `?model=${encodeURIComponent(model)}` : "");
+const api = {
+  patient: (id, model) => `/api/patients/${encodeURIComponent(id)}${modelQuery(model)}`,
+  analysis: (id, file, model) =>
+    `/api/patients/${encodeURIComponent(id)}/nights/${encodeURIComponent(file)}/analysis${modelQuery(model)}`,
+};
+
 // ── routing ────────────────────────────────────────────────────────────────
 
 const patientPath = id => `/patient/${encodeURIComponent(id)}`;
+const nightPath = (id, file) => `${patientPath(id)}/night/${encodeURIComponent(file)}`;
 
-function selectedId() {
-  const match = location.pathname.match(/^\/patient\/([^/]+)$/);
-  if (!match) return null;
-  try { return decodeURIComponent(match[1]); } catch { return null; }
+function currentRoute() {
+  const match = location.pathname.match(/^\/patient\/([^/]+)(?:\/night\/([^/]+))?$/);
+  if (!match) return { patient: null, night: null };
+  try {
+    return { patient: decodeURIComponent(match[1]), night: match[2] ? decodeURIComponent(match[2]) : null };
+  } catch {
+    return { patient: null, night: null };
+  }
 }
-// The selected patient is the page's own path, /patient/<id>. The server answers that path with
-// this same page, so a reload, a bookmark or a pasted link opens on the same patient.
+// /patient/<id> is a patient's page and /patient/<id>/night/<file> one of its nights. The server
+// answers both paths with this same page.
+
+function go(href) {
+  if (href !== location.pathname) history.pushState(null, "", href);
+  window.scrollTo(0, 0);
+  route({ focus: true });
+}
 
 function navigate(event) {
   const link = event.target.closest("a[data-internal]");
   if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
   event.preventDefault();
-  if (link.getAttribute("href") !== location.pathname) history.pushState(null, "", link.getAttribute("href"));
-  route();
+  go(link.getAttribute("href"));
 }
-// A plain click changes the address without reloading the page (history.pushState), so the
-// patient list and results already computed stay in place. A click with a modifier key is left
-// to the browser: Cmd or Ctrl opens the patient in a new tab, which the server can serve.
+// A plain click on an internal link changes the address with history.pushState and redraws
+// without reloading. Clicks with a modifier key are left to the browser (new tab, new window).
+
+function onKey(event) {
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  if (event.target.closest("input, select, textarea, .chart")) return;
+  const href = event.key === "ArrowLeft" ? pager.prev : event.key === "ArrowRight" ? pager.next : null;
+  if (!href) return;
+  event.preventDefault();
+  go(href);
+}
+// Left and right arrows open the previous and next night, except while typing, choosing a model
+// or reading the chart, which uses the arrows itself.
+
+// ── shared pieces ──────────────────────────────────────────────────────────
+
+function placeholder(title, ...body) {
+  return el("div", { class: "placeholder" },
+    el("p", { class: "title" }, title),
+    body.length ? el("p", {}, ...body) : null);
+}
+
+const stat = (label, value, sub) =>
+  el("div", {}, el("dt", {}, label), el("dd", {}, value, sub ? " " : null, sub ? el("span", { class: "sub" }, sub) : null));
+
+function crumbs(...items) {
+  const nav = el("nav", { class: "crumbs", "aria-label": "Breadcrumb" });
+  items.forEach((item, i) => {
+    if (i) nav.append(el("span", { "aria-hidden": "true" }, "/"));
+    nav.append(item.href
+      ? el("a", { href: item.href, "data-internal": "" }, item.label)
+      : el("span", { "aria-current": "page" }, item.label));
+  });
+  return nav;
+}
+
+const nightMeta = night => el("p", { class: "night-meta" },
+  el("code", { class: "file" }, night.file),
+  ` · ${formatDuration(night.duration_s)} · ${formatSize(night.size_bytes)}`);
+
+function pickModel() {
+  const usable = models.filter(m => m.threshold !== null).map(m => m.name);
+  if (!usable.includes(chosenModel)) chosenModel = usable.includes(defaultModel) ? defaultModel : usable[0] ?? null;
+}
+// Keeps the model already chosen; otherwise starts on the default model.
+
+function modelBar(actionLabel, onChange) {
+  pickModel();
+  const selectable = !modelsError && models.length > 0;
+  const select = el("select", { id: "model", class: "select" });
+  if (selectable) {
+    select.append(...models.map(m => {
+      const option = el("option", { value: m.name }, m.threshold === null ? `${m.name} (no threshold)` : m.name);
+      option.disabled = m.threshold === null;
+      option.selected = m.name === chosenModel;
+      return option;
+    }));
+  } else {
+    select.append(el("option", {}, modelsError ? "Models unavailable" : "No models"));
+    select.disabled = true;
+  }
+  const threshold = el("span", { class: "muted" });
+  const button = el("button", { class: "btn btn-primary", type: "button" }, actionLabel);
+
+  const describe = () => {
+    const model = models.find(m => m.name === chosenModel);
+    threshold.textContent = model ? `Threshold ${model.threshold.toFixed(2)}` : "";
+    button.disabled = !model;
+  };
+  select.addEventListener("change", () => {
+    chosenModel = select.value;
+    describe();
+    onChange();
+  });
+  describe();
+
+  return {
+    node: el("div", { class: "model-bar" }, el("label", { for: "model" }, "Model"), select, threshold, button),
+    button,
+    busy(text) {
+      select.disabled = button.disabled = true;
+      button.classList.add("busy");
+      button.replaceChildren(spinner(), text);
+    },
+    idle(label = actionLabel) {
+      select.disabled = !selectable;
+      button.classList.remove("busy");
+      button.replaceChildren(label);
+      describe();
+    },
+  };
+}
+// The dropdown lists every model file; one without a threshold is shown but cannot be chosen.
 
 // ── patient list ───────────────────────────────────────────────────────────
 
 function renderPatients() {
   const query = filter.value.trim().toLowerCase();
-  const current = selectedId();
+  const current = currentRoute().patient;
   countLabel.textContent = patients.length || "";
 
   if (patientsError) {
@@ -308,75 +484,198 @@ function renderPatients() {
   }));
 }
 
-function placeholder(title, ...body) {
-  return el("div", { class: "placeholder" },
-    el("p", { class: "title" }, title),
-    body.length ? el("p", {}, ...body) : null);
-}
+// ── home ───────────────────────────────────────────────────────────────────
 
-const stat = (label, value, sub) =>
-  el("div", {}, el("dt", {}, label), el("dd", {}, value, sub ? " " : null, sub ? el("span", { class: "sub" }, sub) : null));
-// The space is a real character, not a CSS margin, so a screen reader says "378 of 522", not "378of".
-
-// ── one patient's nights ───────────────────────────────────────────────────
-
-function renderNights({ patient, nights }) {
-  const recorded = nights.reduce((sum, night) => sum + night.duration_s, 0);
-
-  const head = el("header", {},
-    el("p", { class: "label" }, "Patient"),
-    el("h1", {}, patient),
-    el("dl", { class: "stats" },
-      stat("Nights", String(nights.length)),
-      stat("Recorded", formatDuration(recorded))));
-
-  if (!nights.length) {
-    detail.replaceChildren(head, placeholder("No nights for this patient",
-      "Nights are files named ", el("code", {}, "NIGHT001.CSV"), ", ", el("code", {}, "NIGHT002.CSV"),
-      " and so on, in this patient's folder."));
+function renderHome() {
+  document.title = "Apnea review";
+  if (patientsError) {
+    detail.replaceChildren(placeholder("Could not load patients", patientsError));
     return;
   }
-  detail.replaceChildren(head, ...nights.map(night => nightCard(patient, night)));
+  if (!patients.length) {
+    detail.replaceChildren(placeholder("No patients yet",
+      "Copy each patient's recordings into ", el("code", {}, "inference/data/patients/<patient>/"),
+      ", one ", el("code", {}, ".csv"), " file per night, then reload this page."));
+    return;
+  }
+  const nights = patients.reduce((sum, p) => sum + p.nights, 0);
+  detail.replaceChildren(
+    crumbs({ label: "Patients" }),
+    el("h1", { tabindex: "-1" }, "Overnight recordings"),
+    el("dl", { class: "stats" },
+      stat("Patients", String(patients.length)),
+      stat("Nights", String(nights)),
+      stat("Models", String(models.filter(m => m.threshold !== null).length))),
+    el("h2", { class: "label" }, "Reviewing a patient"),
+    el("ol", { class: "steps" },
+      el("li", {}, "Choose a patient from the list."),
+      el("li", {}, "Pick a model and analyse all their nights at once, or open one night."),
+      el("li", {}, "Open a night to see its chart, its flagged periods and a CSV of every minute.")));
 }
 
-function nightCard(patient, night) {
-  const button = el("button", { class: "btn", type: "button" }, "Analyse");
-  const slot = el("div", {});
-  const card = el("article", { class: "night" },
-    el("div", { class: "night-head" },
-      el("div", {},
-        el("h3", { class: "night-title" }, `Night ${night.number}`),
-        el("p", { class: "night-meta" },
-          el("code", { class: "file" }, night.file),
-          ` · ${formatDuration(night.duration_s)} · ${formatSize(night.size_bytes)}`)),
-      button),
-    slot);
+// ── one patient ────────────────────────────────────────────────────────────
 
-  const key = analysisKey(patient, night.file);
-  const show = result => {
-    button.remove();
-    slot.replaceChildren(resultView(result));
+const rateBar = rate => el("span", { class: "rate-bar", "aria-hidden": "true" },
+  el("span", { style: `width: ${Math.min(100, 100 * rate / RATE_SCALE)}%` }));
+
+function nightRow(patient, night) {
+  const result = el("div", { class: "night-result" });
+  const node = el("a", { class: "night night-link", href: nightPath(patient, night.file), "data-internal": "" },
+    el("div", { class: "night-info" }, el("h3", { class: "night-title" }, `Night ${night.number}`), nightMeta(night)),
+    result,
+    el("span", { class: "chevron", "aria-hidden": "true" }, "›"));
+
+  return {
+    node,
+    show(analysis) {
+      result.removeAttribute("title");
+      if (!analysis) {
+        result.replaceChildren(el("span", { class: "muted" }, "Not analysed"));
+        return;
+      }
+      const rate = analysis.apnea_minutes_per_hour;
+      result.title = `${analysis.apnea_minutes} of ${analysis.minutes} minutes flagged`;
+      result.replaceChildren(rateBar(rate),
+        el("span", { class: "rate" }, rate.toFixed(1), el("span", { class: "rate-unit" }, " min/h")));
+    },
+    busy() {
+      result.replaceChildren(el("span", { class: "muted" }, spinner()), el("span", { class: "muted" }, "Analysing…"));
+    },
+    failed(message) {
+      result.title = message;
+      result.replaceChildren(el("span", { class: "error" }, "Analysis failed"));
+    },
   };
-  if (analyses.has(key)) show(analyses.get(key));
+}
 
-  button.addEventListener("click", async () => {
-    button.disabled = true;
-    button.replaceChildren(el("span", { class: "spinner", "aria-hidden": "true" }), "Analysing…");
-    slot.replaceChildren();
+function renderPatient(data, token) {
+  const { patient } = data;
+  let nights = data.nights;
+  document.title = `${patient} · Apnea review`;
+
+  const head = [
+    crumbs({ label: "Patients", href: "/" }, { label: patient }),
+    el("h1", { tabindex: "-1" }, patient),
+  ];
+  if (!nights.length) {
+    detail.replaceChildren(...head, placeholder("No nights for this patient",
+      "Each ", el("code", {}, ".csv"), " file in this patient's folder is one night."));
+    return;
+  }
+
+  const recorded = nights.reduce((sum, night) => sum + night.duration_s, 0);
+  const analysedCount = el("dd", {});
+  const rows = new Map(nights.map(night => [night.file, nightRow(patient, night)]));
+
+  const refresh = () => {
+    const done = nights.filter(n => n.analysis).length;
+    analysedCount.textContent = `${done} of ${nights.length}`;
+    for (const night of nights) {
+      const row = rows.get(night.file);
+      if (night.error && !night.analysis) row?.failed(night.error);
+      else row?.show(night.analysis);
+    }
+    bar.idle(done === nights.length ? "All nights analysed" : "Analyse all nights");
+    if (done === nights.length) bar.button.disabled = true;
+  };
+  // Redraws every row and the count from `nights`, the list for the selected model.
+
+  const bar = modelBar("Analyse all nights", async () => {
+    const model = chosenModel;
     try {
-      const url = `/api/patients/${encodeURIComponent(patient)}/nights/${encodeURIComponent(night.file)}/analysis`;
-      const result = await getJSON(url, { method: "POST" });
-      analyses.set(key, result);
-      show(result);
+      const fresh = await getJSON(api.patient(patient, model));
+      if (token !== view || model !== chosenModel) return;
+      nights = fresh.nights;
+      refresh();
     } catch (error) {
-      button.disabled = false;
-      button.replaceChildren("Analyse");
-      slot.replaceChildren(el("p", { class: "note error" }, `Analysis failed: ${error.message}`));
+      if (token === view) analysedCount.textContent = "?";
     }
   });
-  // A result that arrives after the doctor has moved to another patient still goes into
-  // `analyses`, so it is there when they come back; show() then draws into a detached card.
-  return card;
+  // Changing the model reloads which nights that model has analysed.
+
+  bar.button.addEventListener("click", async () => {
+    const model = chosenModel;
+    const pending = nights.filter(n => !n.analysis);
+    for (const [i, night] of pending.entries()) {
+      if (token !== view) return;
+      bar.busy(`Analysing ${i + 1} of ${pending.length}…`);
+      rows.get(night.file)?.busy();
+      try {
+        const result = await getJSON(api.analysis(patient, night.file, model), { method: "POST" });
+        night.analysis = { minutes: result.minutes, ...result.summary };
+        rows.get(night.file)?.show(night.analysis);
+      } catch (error) {
+        night.error = error.message;
+        rows.get(night.file)?.failed(error.message);
+      }
+    }
+    if (token === view) refresh();
+  });
+  // Nights are analysed one after the other; leaving the page stops the loop after the current one.
+
+  detail.replaceChildren(...head,
+    el("dl", { class: "stats" },
+      stat("Nights", String(nights.length)),
+      stat("Recorded", formatDuration(recorded)),
+      el("div", {}, el("dt", {}, "Analysed"), analysedCount)),
+    bar.node,
+    ...[...rows.values()].map(row => row.node));
+  refresh();
+}
+
+// ── one night ──────────────────────────────────────────────────────────────
+
+function pagerLink(night, patient, label) {
+  if (!night) return el("span", { class: "btn btn-ghost", "aria-disabled": "true" }, label);
+  return el("a", { class: "btn btn-ghost", href: nightPath(patient, night.file), "data-internal": "" }, label);
+}
+
+function renderNight(patient, nights, night, token) {
+  document.title = `Night ${night.number} · ${patient} · Apnea review`;
+  const index = nights.indexOf(night);
+  const prev = nights[index - 1], next = nights[index + 1];
+  pager = { prev: prev ? nightPath(patient, prev.file) : null, next: next ? nightPath(patient, next.file) : null };
+
+  const slot = el("div", {});
+  const showKept = async () => {
+    const model = chosenModel;
+    if (!model) return slot.replaceChildren();
+    try {
+      const result = await getJSON(api.analysis(patient, night.file, model));
+      if (token === view && model === chosenModel) slot.replaceChildren(resultView(result, patient, night));
+    } catch (error) {
+      if (token !== view || model !== chosenModel) return;
+      slot.replaceChildren(error.status === 404
+        ? el("p", { class: "note" }, "Not analysed with this model yet.")
+        : el("p", { class: "note error" }, error.message));
+    }
+  };
+  // Shows the result kept on the server for the selected model, without running it again.
+
+  const bar = modelBar("Analyse", showKept);
+  bar.button.addEventListener("click", async () => {
+    const model = chosenModel;
+    bar.busy("Analysing…");
+    try {
+      const result = await getJSON(api.analysis(patient, night.file, model), { method: "POST" });
+      if (token === view && model === chosenModel) slot.replaceChildren(resultView(result, patient, night));
+    } catch (error) {
+      if (token === view) slot.replaceChildren(el("p", { class: "note error" }, `Analysis failed: ${error.message}`));
+    } finally {
+      if (token === view) bar.idle();
+    }
+  });
+
+  detail.replaceChildren(
+    crumbs({ label: "Patients", href: "/" }, { label: patient, href: patientPath(patient) }, { label: `Night ${night.number}` }),
+    el("div", { class: "page-head" },
+      el("div", {}, el("h1", { tabindex: "-1" }, `Night ${night.number}`), nightMeta(night)),
+      el("nav", { class: "pager", "aria-label": "Nights" },
+        pagerLink(prev, patient, prev ? `‹ Night ${prev.number}` : "‹ Previous"),
+        pagerLink(next, patient, next ? `Night ${next.number} ›` : "Next ›"))),
+    bar.node,
+    slot);
+  showKept();
 }
 
 // ── one night's result ─────────────────────────────────────────────────────
@@ -391,13 +690,28 @@ function apneaPeriods(apnea) {
   if (start !== null) periods.push({ start, length: apnea.length - start });
   return periods;
 }
-// Runs of consecutive flagged minutes. They are the model's periods, not clinical apnea events,
-// which are scored breath by breath and last from 10 s.
+// Runs of consecutive flagged minutes, as {start minute, length in minutes}.
 
-function resultView(r) {
+function downloadCsv(r, patient, night) {
+  const lines = ["minute,start,probability,probability_smoothed,apnea"];
+  r.prob.forEach((p, i) => lines.push([i + 1, formatClock(i), p, r.prob_smoothed[i], r.apnea[i] ? 1 : 0].join(",")));
+  const url = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "text/csv" }));
+  const link = el("a", { href: url, download: `${patient}_${night.file.replace(/\.[^.]+$/, "")}_${r.model.replace(/\.tflite$/, "")}.csv` });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+// One row per minute: its start as h:mm, the raw and smoothed probabilities, and the decision.
+
+function resultView(r, patient, night) {
   const periods = apneaPeriods(r.apnea);
   const longest = Math.max(0, ...periods.map(p => p.length));
   const chart = el("div", { class: "chart" });
+  const csv = el("button", { class: "btn", type: "button" }, "Download CSV");
+  csv.addEventListener("click", () => downloadCsv(r, patient, night));
+  const print = el("button", { class: "btn", type: "button" }, "Print");
+  print.addEventListener("click", () => window.print());
 
   const view = el("div", { class: "result" },
     el("dl", { class: "stats" },
@@ -408,9 +722,10 @@ function resultView(r) {
     el("ul", { class: "legend" },
       el("li", {}, el("span", { class: "key-apnea" }), "Flagged as apnea"),
       el("li", {}, el("span", { class: "key-line" }), `Apnea probability, ${r.smooth_window}-minute average`),
-      el("li", {}, el("span", { class: "key-threshold" }), `Threshold ${r.threshold}`)),
+      el("li", {}, el("span", { class: "key-threshold" }), `Threshold ${r.threshold.toFixed(2)}`)),
     chart,
-    periods.length ? periodsTable(periods) : null);
+    periods.length ? periodsTable(periods) : null,
+    el("div", { class: "result-actions" }, csv, print));
 
   let drawnWidth = 0;
   new ResizeObserver(() => {
@@ -419,8 +734,7 @@ function resultView(r) {
       drawChart(chart, r);
     }
   }).observe(chart);
-  // The chart is drawn at its real pixel width, so its text stays at its real size on a phone.
-  // The observer draws it once the card is on screen and again whenever the width changes.
+  // Draws the chart at its container's pixel width once it is on screen, and again on resize.
   return view;
 }
 
@@ -433,7 +747,6 @@ function periodsTable(periods) {
         el("td", {}, formatClock(p.start)),
         el("td", {}, formatClock(p.start + p.length)),
         el("td", {}, `${p.length} min`))))));
-  // The table carries what the red strip shows, for a reader who cannot see or hover the chart.
 }
 
 function drawChart(container, r) {
@@ -525,50 +838,61 @@ function drawChart(container, r) {
     event.preventDefault();
     show((current ?? 0) + moves[event.key] * (event.shiftKey ? 10 : 1));
   });
-  // The pointer snaps to the nearest minute anywhere over the strip or the plot, so nobody has to
-  // land on a 2 px line. The keyboard reads the same values: arrows move one minute, Shift ten.
+  // The pointer snaps to the nearest minute over the strip or the plot. Arrows move one minute,
+  // Shift+arrow ten, Home and End to either end.
 
   container.replaceChildren(root, tip);
 }
 
 // ── page ───────────────────────────────────────────────────────────────────
 
-async function route() {
+async function route({ focus = false } = {}) {
+  const token = ++view;
+  pager = { prev: null, next: null };
   renderPatients();
-  const id = selectedId();
-  document.title = id ? `${id} · Apnea review` : "Apnea review";
+  const { patient, night } = currentRoute();
+  document.body.dataset.view = night ? "night" : patient ? "patient" : "home";
 
-  if (id === null) {
-    if (patientsError) detail.replaceChildren(placeholder("Could not load patients", patientsError));
-    else if (patients.length) detail.replaceChildren(placeholder("Select a patient", "Their recorded nights will be listed here."));
-    else detail.replaceChildren(placeholder("No patients yet",
-      "Copy each patient's recordings into ", el("code", {}, "inference/data/patients/<patient>/"),
-      ", as ", el("code", {}, "NIGHT001.CSV"), ", ", el("code", {}, "NIGHT002.CSV"),
-      " and so on, then reload this page."));
-    return;
+  if (patient === null) {
+    renderHome();
+  } else {
+    detail.setAttribute("aria-busy", "true");
+    if (!detail.childElementCount) detail.replaceChildren(placeholder("Loading…"));
+    pickModel();
+    try {
+      const data = await getJSON(api.patient(patient, chosenModel));
+      if (token !== view) return;
+      const found = night === null ? null : data.nights.find(n => n.file === night);
+      if (night === null) renderPatient(data, token);
+      else if (found) renderNight(patient, data.nights, found, token);
+      else detail.replaceChildren(
+        crumbs({ label: "Patients", href: "/" }, { label: patient, href: patientPath(patient) }, { label: night }),
+        placeholder(`No night ${night} for ${patient}`));
+    } catch (error) {
+      if (token !== view) return;
+      detail.replaceChildren(crumbs({ label: "Patients", href: "/" }), placeholder(`Could not open ${patient}`, error.message));
+    }
   }
-
-  const request = ++latestRequest;
-  detail.replaceChildren(placeholder("Loading nights…"));
-  try {
-    const data = await getJSON(`/api/patients/${encodeURIComponent(id)}`);
-    if (request === latestRequest) renderNights(data);
-  } catch (error) {
-    if (request === latestRequest) detail.replaceChildren(placeholder(`Could not open ${id}`, error.message));
-  }
-  // Clicking two patients quickly starts two requests that can finish in either order. Only the
-  // most recent one is allowed to draw, so the page never shows one patient under another's name.
+  detail.removeAttribute("aria-busy");
+  if (focus) detail.querySelector("h1")?.focus({ preventScroll: true });
 }
+// The previous page stays on screen, dimmed by aria-busy, until the new one is ready. `token`
+// stops a slow response from drawing over a page opened after it.
 
 async function start() {
-  try {
-    patients = await getJSON("/api/patients");
-  } catch (error) {
-    patientsError = error.message;
+  const [patientList, modelList] = await Promise.allSettled([getJSON("/api/patients"), getJSON("/api/models")]);
+  if (patientList.status === "fulfilled") patients = patientList.value;
+  else patientsError = patientList.reason.message;
+  if (modelList.status === "fulfilled") {
+    models = modelList.value.models;
+    defaultModel = modelList.value.default;
+  } else {
+    modelsError = modelList.reason.message;
   }
   document.addEventListener("click", navigate);
+  document.addEventListener("keydown", onKey);
   filter.addEventListener("input", renderPatients);
-  window.addEventListener("popstate", route);
+  window.addEventListener("popstate", () => route());
   route();
 }
 

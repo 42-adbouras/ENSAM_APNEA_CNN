@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import io
+import json
+import logging
 import os
 import re
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -19,11 +22,24 @@ RECORDING_FS = float(os.environ.get("RECORDING_FS", FS))
 # The ESP32's sampling rate. A night file is bare samples with no header to say it, so the rate
 # is set once for the device here; a night's duration is its sample count divided by it.
 STATIC_DIR = Path(__file__).parent / "static"
-THRESHOLD = float(os.environ.get("APNEA_THRESHOLD", "0.23"))
+MODELS_DIR = MODEL_PATH.parent
+# The folder the night page's model dropdown lists; MODEL_PATH is the model it starts on.
+ANALYSES_DIR = Path(os.environ.get("ANALYSES_DIR", "/analyses"))
+# Where analysis results are stored: <patient>/<night file>/<model file>.json
+
+
+def _parse_thresholds(text: str) -> dict[str, float]:
+    pairs = (pair.split("=", 1) for pair in text.split(",") if pair.strip())
+    return {name.strip(): float(value) for name, value in pairs}
+    # "model_int8.tflite=0.23,model_float32.tflite=0.20" -> {"model_int8.tflite": 0.23, ...}
+
+
+THRESHOLDS = _parse_thresholds(os.environ.get("MODEL_THRESHOLDS", "model_int8.tflite=0.23"))
+# One decision threshold per model file. A model missing from it is listed but cannot be run.
+if MODEL_PATH.name not in THRESHOLDS:
+    raise RuntimeError(f"MODEL_THRESHOLDS has no threshold for {MODEL_PATH.name}")
+THRESHOLD = THRESHOLDS[MODEL_PATH.name]
 SMOOTH_WINDOW = int(os.environ.get("SMOOTH_WINDOW", "5"))
-# APNEA_THRESHOLD belongs to the model file: it was chosen on the validation records for the
-# int8 model, after 5-minute smoothing (0.23 for the model trained in src/model.ipynb). A
-# retrained model needs its own value; reusing an old one silently shifts every decision.
 
 RECORD_NAME = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 # Record names become file paths, so anything like "../" is refused before it reaches the disk.
@@ -31,10 +47,85 @@ RECORD_NAME = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 model = ApneaModel(MODEL_PATH)
 app = FastAPI(title="Apnea inference", version="0.1")
 
+_loaded: dict[str, tuple[int, ApneaModel]] = {MODEL_PATH.name: (MODEL_PATH.stat().st_mtime_ns, model)}
+_loaded_lock = threading.Lock()
+
+
+def _model_files() -> dict[str, Path]:
+    return {p.name: p for p in sorted(MODELS_DIR.glob("*.tflite")) if not p.name.startswith(".")}
+
+
+def _model(name: str) -> tuple[ApneaModel, float]:
+    """A model file of the models folder, loaded, and its threshold."""
+    path = _model_files().get(name)
+    if path is None:
+        raise HTTPException(404, f"no model named {name!r}")
+    if name not in THRESHOLDS:
+        raise HTTPException(409, f"no threshold for {name!r}: add it to MODEL_THRESHOLDS")
+    mtime = path.stat().st_mtime_ns
+    with _loaded_lock:
+        cached = _loaded.get(name)
+        if cached is None or cached[0] != mtime:
+            try:
+                _loaded[name] = (mtime, ApneaModel(path))
+            except (ValueError, RuntimeError) as exc:
+                raise HTTPException(409, f"model {name!r} cannot be loaded: {exc}") from exc
+        return _loaded[name][1], THRESHOLDS[name]
+    # Each file is loaded once and kept; a file replaced on disk has a new mtime and is loaded
+    # again. The name is looked up among the listed files, never joined onto the folder.
+
+
+MODEL_QUERY = Query(MODEL_PATH.name, description="a model file in the models folder")
+
+log = logging.getLogger("uvicorn.error")
+
+
+def _stored_path(patient: str, night: Path, model_name: str) -> Path:
+    return ANALYSES_DIR / patient / night.name / f"{model_name}.json"
+    # The three names come from folders and files actually listed, so none can be "..".
+
+
+def _source(night: Path, model_name: str) -> dict | None:
+    model_path = _model_files().get(model_name)
+    if model_path is None:
+        return None
+    night_stat, model_stat = night.stat(), model_path.stat()
+    return {"night_size": night_stat.st_size, "night_mtime_ns": night_stat.st_mtime_ns,
+            "model_size": model_stat.st_size, "model_mtime_ns": model_stat.st_mtime_ns,
+            "threshold": THRESHOLDS.get(model_name), "smooth_window": SMOOTH_WINDOW}
+    # What a result was computed from. A stored result is returned only while this is unchanged,
+    # so a replaced night or model file, or a new threshold, makes it count as not analysed.
+
+
+def _kept_result(patient: str, night: Path, model_name: str) -> dict | None:
+    source = _source(night, model_name)
+    stored = _stored_path(patient, night, model_name)
+    if source is None or not stored.is_file():
+        return None
+    try:
+        kept = json.loads(stored.read_text())
+    except (OSError, ValueError):
+        return None
+    return kept.get("result") if kept.get("source") == source else None
+
+
+def _keep_result(patient: str, night: Path, model_name: str, result: dict) -> None:
+    stored = _stored_path(patient, night, model_name)
+    try:
+        stored.parent.mkdir(parents=True, exist_ok=True)
+        partial = stored.with_suffix(".partial")
+        partial.write_text(json.dumps({"source": _source(night, model_name), "result": result}))
+        os.replace(partial, stored)
+    except OSError as exc:
+        log.warning("analysis of %s/%s not stored: %s", patient, night.name, exc)
+    # Written to a ".partial" file, then renamed over the old one in a single step, so a reader
+    # never sees half a file. A failed write is logged and the result is still returned.
+
 
 @app.get("/", include_in_schema=False)
 @app.get("/patient/{patient}", include_in_schema=False)
-def page(patient: str | None = None) -> FileResponse:
+@app.get("/patient/{patient}/night/{night}", include_in_schema=False)
+def page(patient: str | None = None, night: str | None = None) -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
     # One self-contained page, no CDN: it fetches the /api routes below and works offline, on a
     # clinic network with no internet access. /patient/{id} returns the same page, which reads
@@ -51,31 +142,60 @@ def _patient_folder(patient: str) -> Path:
     # request for ".." or "../results" finds nothing.
 
 
+@app.get("/api/models")
+def models() -> dict:
+    return {"default": MODEL_PATH.name,
+            "models": [{"name": name, "size_bytes": path.stat().st_size,
+                        "threshold": THRESHOLDS.get(name)}
+                       for name, path in _model_files().items()]}
+
+
 @app.get("/api/patients")
 def patients() -> list[dict]:
     return list_patients(PATIENTS_DIR)
 
 
 @app.get("/api/patients/{patient}")
-def patient_nights(patient: str) -> dict:
-    return {"patient": patient, "sample_rate_hz": RECORDING_FS,
-            "nights": list_nights(_patient_folder(patient), RECORDING_FS)}
+def patient_nights(patient: str, model: str = MODEL_QUERY) -> dict:
+    folder = _patient_folder(patient)
+    nights = list_nights(folder, RECORDING_FS)
+    for night in nights:
+        result = _kept_result(patient, folder / night["file"], model)
+        night["analysis"] = None if result is None else {"minutes": result["minutes"], **result["summary"]}
+    return {"patient": patient, "model": model, "sample_rate_hz": RECORDING_FS, "nights": nights}
+    # "analysis" is the summary of the kept result for `model`, or None when the night has not
+    # been analysed with it.
 
 
-@app.post("/api/patients/{patient}/nights/{night}/analysis")
-def analyse_night(patient: str, night: str) -> dict:
+def _night_path(patient: str, night: str) -> Path:
     path = night_file(_patient_folder(patient), night)
     if path is None:
         raise HTTPException(404, f"no night named {night!r} for patient {patient!r}")
+    return path
+
+
+@app.get("/api/patients/{patient}/nights/{night}/analysis")
+def kept_analysis(patient: str, night: str, model: str = MODEL_QUERY) -> dict:
+    result = _kept_result(patient, _night_path(patient, night), model)
+    if result is None:
+        raise HTTPException(404, f"{night!r} has not been analysed with {model!r}")
+    return result
+    # Returns the kept result without running the model.
+
+
+@app.post("/api/patients/{patient}/nights/{night}/analysis")
+def analyse_night(patient: str, night: str, model: str = MODEL_QUERY) -> dict:
+    path = _night_path(patient, night)
+    chosen, threshold = _model(model)
     try:
         ecg = read_night(path)
-        return {"patient": patient, "night": night, "sample_rate_hz": RECORDING_FS,
-                **analyse(ecg, RECORDING_FS, model, THRESHOLD, SMOOTH_WINDOW)}
+        result = {"patient": patient, "night": night, "model": model, "sample_rate_hz": RECORDING_FS,
+                  **analyse(ecg, RECORDING_FS, chosen, threshold, SMOOTH_WINDOW)}
     except ValueError as exc:
         raise HTTPException(422, f"could not analyse {night!r}: {exc}") from exc
-    # POST, although nothing is stored: the request runs the model, and a GET could be fired by a
-    # browser prefetching links. A full night takes about a second, so it runs while the doctor
-    # waits and nothing is cached.
+    _keep_result(patient, path, model, result)
+    return result
+    # Runs the model and keeps the result, which GET on the same path then returns.
 
 
 @app.get("/health")

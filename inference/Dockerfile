@@ -8,7 +8,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY pipeline.py patients.py app.py ./
 COPY static/ static/
 
-RUN useradd --system --no-create-home inference
+RUN useradd --system --no-create-home inference \
+    && mkdir /analyses && chown inference /analyses
+
 USER inference
 
 EXPOSE 8000

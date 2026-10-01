@@ -15,6 +15,9 @@ logs:
 ps:
 	$(COMPOSE) ps
 
+shell:
+	$(COMPOSE) exec inference bash
+
 stop:
 	$(COMPOSE) stop
 
@@ -25,4 +28,4 @@ clean:
 	$(COMPOSE) down -v
 	docker system prune -af
 
-.PHONY: build up rebuild logs ps stop down clean
+.PHONY: build up rebuild logs ps shell stop down clean

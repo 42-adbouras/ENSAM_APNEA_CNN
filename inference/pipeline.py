@@ -2,7 +2,7 @@
 Apnea inference: raw single-lead ECG -> one apnea decision per minute.
 
     raw ECG (mV) -> resample to 100 Hz -> band-pass + notch -> clip
-      -> 60 s windows, each z-scored -> int8 -> model_int8.tflite -> P(apnea)
+      -> 60 s windows, each z-scored -> TFLite model (int8 or float32) -> P(apnea)
       -> 5-minute moving average -> threshold -> A / N
 
 The preprocessing is a copy of the one the model was trained on (the Dataset cell of
@@ -76,7 +76,7 @@ def smooth(prob: np.ndarray, window: int) -> np.ndarray:
 # ── the model ────────────────────────────────────────────────────────────────
 
 class ApneaModel:
-    """The int8 TFLite model: z-scored windows in, P(apnea) per window out."""
+    """A TFLite model, full int8 or float32: z-scored windows in, P(apnea) per window out."""
 
     def __init__(self, model_path: Path):
         self.path = Path(model_path)
@@ -91,22 +91,31 @@ class ApneaModel:
 
         inp = self._interpreter.get_input_details()[0]
         out = self._interpreter.get_output_details()[0]
-        assert tuple(inp["shape"]) == (1, WINDOW_SAMPLES, 1), f"unexpected input {inp['shape']}"
-        assert inp["dtype"] == np.int8 and out["dtype"] == np.int8, "expected a full-int8 model"
+        if tuple(inp["shape"]) != (1, WINDOW_SAMPLES, 1):
+            raise ValueError(f"expected input shape (1, {WINDOW_SAMPLES}, 1), got {tuple(inp['shape'])}")
+        if not (inp["dtype"] == out["dtype"] and inp["dtype"] in (np.int8, np.float32)):
+            raise ValueError("expected a full-int8 or a float32 model")
+        self.quantized = inp["dtype"] == np.int8
         self._in, self._out = inp["index"], out["index"]
         self.in_scale, self.in_zero = inp["quantization"]
         self.out_scale, self.out_zero = out["quantization"]
+        # A float32 model reports (0.0, 0) for both and never uses them.
 
     def predict(self, windows: np.ndarray) -> np.ndarray:
-        q = np.clip(np.round(windows / self.in_scale) + self.in_zero, -128, 127).astype(np.int8)
+        if self.quantized:
+            x = np.clip(np.round(windows / self.in_scale) + self.in_zero, -128, 127).astype(np.int8)
+        else:
+            x = windows.astype(np.float32)
         probs = np.empty(len(windows), dtype=np.float32)
         with self._lock:
-            for i, window in enumerate(q):
+            for i, window in enumerate(x):
                 self._interpreter.set_tensor(self._in, window.reshape(1, WINDOW_SAMPLES, 1))
                 self._interpreter.invoke()
-                raw = int(self._interpreter.get_tensor(self._out)[0, 0])
-                probs[i] = (raw - self.out_zero) * self.out_scale
+                raw = self._interpreter.get_tensor(self._out)[0, 0]
+                probs[i] = (int(raw) - self.out_zero) * self.out_scale if self.quantized else raw
         return probs
+        # int8: the window is quantised on the way in and the output dequantised on the way out.
+        # float32: the window goes in as it is and the output is the probability.
 
 
 # ── one recording, end to end ────────────────────────────────────────────────

@@ -6,10 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-NIGHT_SUFFIXES = {".csv", ".txt"}
-NIGHT_NAME = re.compile(r"^NIGHT(\d+)$", re.IGNORECASE)
-# Matched against the name without its suffix, ignoring case: NIGHT001.CSV and night1.csv are
-# both night 1.
+NIGHT_SUFFIX = ".csv"
 
 
 def _visible(path: Path) -> bool:
@@ -29,21 +26,18 @@ def patient_dirs(root: Path) -> dict[str, Path]:
     # such as ".." matches nothing.
 
 
-def night_number(path: Path) -> int | None:
-    """The night's number from its file name, or None when the name is not a night's."""
-    match = NIGHT_NAME.match(path.stem)
-    if match is None or path.suffix.lower() not in NIGHT_SUFFIXES:
-        return None
-    return int(match.group(1))
-    # int() drops the leading zeros, so NIGHT007 and NIGHT7 are both night 7.
+def _natural_key(name: str) -> list:
+    return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", name)]
+    # "NIGHT10.csv" -> ["night", 10, ".csv"]: digit runs compare as numbers, so NIGHT9 sorts before
+    # NIGHT10. re.split with a group alternates text and digits, so the same positions always hold
+    # the same type.
 
 
 def night_files(folder: Path) -> list[Path]:
-    """A patient's night files, in the order of their numbers."""
+    """A patient's .csv files, in natural name order."""
     files = [f for f in folder.iterdir()
-             if f.is_file() and _visible(f) and night_number(f) is not None]
-    return sorted(files, key=lambda f: (night_number(f), f.name.lower()))
-    # Sorted on the number, not on the name: as text, NIGHT10 would come before NIGHT9.
+             if f.is_file() and _visible(f) and f.suffix.lower() == NIGHT_SUFFIX]
+    return sorted(files, key=lambda f: _natural_key(f.name))
 
 
 def night_file(folder: Path, name: str) -> Path | None:
@@ -105,18 +99,18 @@ def list_patients(root: Path) -> list[dict]:
         patients.append({
             "id": name,
             "nights": len(files),
-            "latest_night": night_number(files[-1]) if files else None,
+            "latest_night": len(files) if files else None,
         })
     return patients
 
 
 def list_nights(folder: Path, fs: float) -> list[dict]:
     nights = []
-    for f in night_files(folder):
+    for number, f in enumerate(night_files(folder), start=1):
         samples = count_samples(f)
         nights.append({
             "file": f.name,
-            "number": night_number(f),
+            "number": number,
             "samples": samples,
             "duration_s": samples / fs,
             "size_bytes": f.stat().st_size,

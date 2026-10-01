@@ -6,12 +6,12 @@ services:
       context: ./inference
     ports:
       - "8000:8000"
-    environment:
-      MODEL_PATH: /models/model_int8.tflite
-      DATA_DIR: /data/apnea-ecg
-      PATIENTS_DIR: /patients
-      RECORDING_FS: 100
+    env_file: .env
     volumes:
       - ./inference/data/models:/models
       - ./data/apnea-ecg:/data/apnea-ecg
       - ./inference/data/patients:/patients
+      - analyses:/analyses
+
+volumes:
+  analyses:
