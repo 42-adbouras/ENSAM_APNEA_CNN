@@ -1,3 +1,14 @@
+FROM node:22-slim AS web
+
+WORKDIR /web
+
+COPY web/package.json web/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY web/ ./
+RUN npm run build
+
+
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -6,7 +17,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY pipeline.py patients.py app.py ./
-COPY static/ static/
+COPY --from=web /web/dist static/
 
 RUN useradd --system --no-create-home inference \
     && mkdir /analyses && chown inference /analyses

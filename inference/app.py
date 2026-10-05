@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from patients import list_nights, list_patients, night_file, patient_dirs, read_night
 from pipeline import FS, ApneaModel, analyse, has_ecg, load_physionet_record
@@ -21,7 +22,8 @@ PATIENTS_DIR = Path(os.environ.get("PATIENTS_DIR", "/patients"))
 RECORDING_FS = float(os.environ.get("RECORDING_FS", FS))
 # The ESP32's sampling rate. A night file is bare samples with no header to say it, so the rate
 # is set once for the device here; a night's duration is its sample count divided by it.
-STATIC_DIR = Path(__file__).parent / "static"
+STATIC_DIR = Path(os.environ.get("STATIC_DIR", Path(__file__).parent / "static"))
+# The built React app (inference/web/dist): index.html and its assets/ folder.
 MODELS_DIR = MODEL_PATH.parent
 # The folder the night page's model dropdown lists; MODEL_PATH is the model it starts on.
 ANALYSES_DIR = Path(os.environ.get("ANALYSES_DIR", "/analyses"))
@@ -46,6 +48,8 @@ RECORD_NAME = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 
 model = ApneaModel(MODEL_PATH)
 app = FastAPI(title="Apnea inference", version="0.1")
+app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets", check_dir=False), name="assets")
+# Vite's hashed JavaScript and CSS files, referenced by index.html as /assets/...
 
 _loaded: dict[str, tuple[int, ApneaModel]] = {MODEL_PATH.name: (MODEL_PATH.stat().st_mtime_ns, model)}
 _loaded_lock = threading.Lock()

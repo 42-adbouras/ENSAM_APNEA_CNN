@@ -4,4 +4,6 @@
 !pipeline.py
 !patients.py
 !app.py
-!static/
+!web/
+web/node_modules/
+web/dist/
