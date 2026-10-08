@@ -5,6 +5,18 @@ import { formatDuration, formatSize } from "../format";
 
 export const Spinner = () => <span className="spinner" aria-hidden="true" />;
 
+export const UserIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" strokeWidth="2" />
+    <path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6" fill="none" stroke="currentColor" strokeWidth="2"
+          strokeLinecap="round" />
+  </svg>
+);
+
+export const Avatar = ({ large = false }: { large?: boolean }) => (
+  <span className={large ? "avatar avatar-lg" : "avatar"}><UserIcon /></span>
+);
+
 export function Placeholder({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="placeholder">

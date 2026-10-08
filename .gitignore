@@ -2,6 +2,7 @@
 
 !src/
 !src/model.ipynb
+!/requirements.txt
 !results/
 
 !inference/
@@ -25,13 +26,15 @@ inference/web/node_modules/
 inference/web/dist/
 
 !docker-compose.yml
-!Dockerfile
-!requirements.txt
 
 !Makefile
 
 !README.md
+!INFERENCE.md
+!docs/
+!docs/screenshots/
+!docs/screenshots/*.png
 !.env.example
 
-!.dockerignore
+!inference/.dockerignore
 !.gitignore

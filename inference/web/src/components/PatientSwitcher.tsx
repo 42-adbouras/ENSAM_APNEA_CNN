@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../api";
 import { patientPath, plural } from "../format";
+import { UserIcon } from "./common";
 
 const SHOWN = 8;   // matches listed at once
 
@@ -76,7 +77,7 @@ export function PatientSwitcher() {
             <li key={p.id} id={`switcher-option-${i}`} role="option" aria-selected={i === active}
                 onMouseEnter={() => setActive(i)}
                 onMouseDown={event => { event.preventDefault(); go(p.id); }}>
-              <span className="id">{p.id}</span>
+              <span className="id"><UserIcon />{p.id}</span>
               <span className="muted">{plural(p.nights, "night")}</span>
             </li>
           )) : <li className="empty">{query.isPending ? "Loading…" : "No patient matches"}</li>}

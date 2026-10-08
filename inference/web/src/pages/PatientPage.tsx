@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, summaryOf, type Night, type PatientNights } from "../api";
-import { Crumbs, NightMeta, Placeholder, Spinner, Stat } from "../components/common";
+import { Avatar, Crumbs, NightMeta, Placeholder, Spinner, Stat } from "../components/common";
 import { ModelBar } from "../components/ModelBar";
 import { formatDuration, nightPath } from "../format";
 import { useModel } from "../model";
@@ -49,7 +49,8 @@ function PatientView({ patient }: { patient: string }) {
   async function analyseAll() {
     if (!chosen || !query.data) return;
     const model = chosen;
-    const pending = query.data.nights.filter(n => !n.analysis);
+    const pending = [...query.data.nights].reverse().filter(n => !n.analysis);
+    // Newest first, the order of the list on screen.
     for (const [i, night] of pending.entries()) {
       if (!alive.current) return;
       setRunning({ done: i + 1, total: pending.length, file: night.file });
@@ -76,7 +77,10 @@ function PatientView({ patient }: { patient: string }) {
   return (
     <>
       <Crumbs items={[{ label: "Patients", to: "/" }, { label: patient }]} />
-      <h1 tabIndex={-1}>{patient}</h1>
+      <div className="title-row">
+        <Avatar large />
+        <h1 tabIndex={-1}>{patient}</h1>
+      </div>
       {query.isError ? (
         <Placeholder title={`Could not open ${patient}`}>{query.error.message}</Placeholder>
       ) : !nights ? (
@@ -99,10 +103,11 @@ function PatientView({ patient }: { patient: string }) {
             run: analyseAll,
           }} />
           <div aria-busy={query.isPlaceholderData || undefined}>
-            {nights.map(night => (
+            {[...nights].reverse().map(night => (
               <NightRow key={night.file} patient={patient} night={night}
                         busy={running?.file === night.file} failure={failures[`${chosen}/${night.file}`]} />
             ))}
+            {/* The server lists nights oldest first (Night 1); the page shows the newest at the top. */}
           </div>
         </>
       )}

@@ -2,8 +2,12 @@
 
 Sleep apnea detection from a single-lead ECG using a 1D convolutional neural network.
 
-The whole pipeline, from downloading the data to scoring the int8 model, is one notebook:
-[src/model.ipynb](src/model.ipynb).
+The project has two parts:
+
+- **Training**: one notebook, [src/model.ipynb](src/model.ipynb), from downloading the data to
+  scoring the TFLite models on the test set.
+- **Inference service**: a Docker service with a web interface that runs those models on overnight
+  recordings, patient by patient. See [INFERENCE.md](INFERENCE.md).
 
 ---
 
@@ -17,8 +21,8 @@ The whole pipeline, from downloading the data to scoring the int8 model, is one 
 | **Label** | One expert annotation per minute: `A` (apnea) = 1, `N` (normal) = 0 |
 | **Model** | Dilated residual 1D CNN: 4-layer stem, 7 residual blocks (dilations 1 to 64), 69,646 parameters |
 | **Loss** | Binary cross-entropy |
-| **Deployment** | Full-int8 TFLite model, 124.5 KB |
 | **Framework** | TensorFlow 2.20 (Keras 3) |
+| **Review interface** | FastAPI + React, in Docker ([INFERENCE.md](INFERENCE.md)) |
 
 ---
 
@@ -32,7 +36,9 @@ training or in choosing the threshold:
 | Keras (`model.keras`) | 0.20 | 0.9209 | 85.56 % | 0.795 | 0.893 | 0.819 |
 | int8 (`model_int8.tflite`) | 0.23 | 0.9198 | 85.70 % | 0.802 | 0.891 | 0.818 |
 
-Quantisation to int8 makes the model about 4 times smaller at no measurable cost in accuracy.
+Quantisation to int8 makes the TFLite model 2.4 times smaller (124.5 KB against 295.8 KB for the
+float32 file) at no measurable cost in accuracy. The float32 file, `model_float32.tflite`,
+reproduces the Keras outputs (largest difference 1.4e-6) and uses the Keras threshold.
 
 Training ran 21 epochs; early stopping restored epoch 9 (best validation AUC 0.9105).
 
@@ -58,29 +64,45 @@ near-normal `c`), so validation contains the same mix as the data it stands in f
 ```
 ENSAM_APNEA_CNN/
 ├── src/
-│   └── model.ipynb          # the whole pipeline: data, model, training, conversion, test
+│   └── model.ipynb          # training: data, model, training, conversion, test
 ├── data/                    # created by the notebook, git-ignored
 │   ├── apnea-ecg/           # raw PhysioNet records (.hea, .dat, .apn, .qrs), ~420 MB
 │   └── processed/           # X_ and y_ arrays for train, val and test, ~823 MB
-└── results/
-    ├── model.keras          # trained Keras model
-    ├── history.json         # loss and metrics for every epoch
-    ├── training_curves.png  # training figure
-    ├── model_int8.tflite    # int8 model for the ESP32-S3
-    └── model_float32.tflite # the same model unquantised, float32 throughout
+├── results/                 # written by the notebook
+│   ├── model.keras          # trained Keras model
+│   ├── history.json         # loss and metrics for every epoch
+│   ├── training_curves.png  # training figure
+│   ├── model_int8.tflite    # int8 model for the ESP32-S3
+│   └── model_float32.tflite # the same model unquantised, float32 throughout
+├── inference/               # the inference service, see INFERENCE.md
+│   ├── app.py               # HTTP API
+│   ├── pipeline.py          # preprocessing and model wrapper
+│   ├── patients.py          # patients folder and night files
+│   ├── web/                 # web interface (React + TypeScript)
+│   ├── data/models/         # .tflite models the service runs
+│   ├── data/patients/       # recordings: one folder per patient, one .csv per night
+│   ├── data/analyses/       # stored results, written by the service (git-ignored)
+│   └── Dockerfile, requirements.txt
+├── requirements.txt         # Python packages of the training notebook
+├── docker-compose.yml       # runs the inference service
+├── Makefile                 # make up, make rebuild, make logs, make shell...
+├── .env.example             # service settings; copy to .env
+├── INFERENCE.md             # inference service guide
+├── DOCKER.md                # how the service's Docker image and container are set up
+└── docs/screenshots/        # interface screenshots used by INFERENCE.md
 ```
 
 ---
 
-## Setup
+## Setup: training notebook
 
-Python **3.11** and the following packages (the versions the notebook was run with):
+Python **3.11** and the packages in [requirements.txt](requirements.txt) (the versions the notebook
+was run with):
 
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate
-pip install tensorflow==2.20.0 wfdb==4.3.1 numpy==2.4.6 scipy==1.17.1 \
-            scikit-learn==1.9.0 matplotlib==3.11.1 ipykernel
+pip install -r requirements.txt
 ```
 
 Then open [src/model.ipynb](src/model.ipynb), select the `.venv` kernel, and run all cells. The
@@ -88,6 +110,27 @@ notebook finds the project folder on its own, whether the kernel starts in `src/
 
 A first run downloads the dataset (~420 MB from PhysioNet) and builds the processed arrays. Later
 runs skip both.
+
+---
+
+## Setup: inference service
+
+Docker Desktop and GNU Make, nothing else:
+
+```bash
+cp .env.example .env
+make up
+```
+
+Then open **http://localhost:8000**: a list of patients, each with their recorded nights. Pick a
+model and analyse a night, or all of a patient's nights at once, to see the apnea minutes per hour,
+the flagged periods and a minute-by-minute chart.
+
+Recordings go in `inference/data/patients/<patient>/`, one `.csv` file per night (one ECG sample
+per line, in mV, at 100 Hz). Three test patients, built from Apnea-ECG's test records, are
+included.
+
+The full documentation is in [INFERENCE.md](INFERENCE.md).
 
 ---
 

@@ -18,7 +18,6 @@ from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
-import wfdb
 from ai_edge_litert.interpreter import Interpreter, OpResolverType
 from scipy.signal import butter, filtfilt, iirnotch, resample_poly, sosfiltfilt
 
@@ -147,20 +146,3 @@ def analyse(ecg_mv: np.ndarray, fs: float, model: ApneaModel,
     }
     # "Apnea minutes per hour" is NOT the clinical AHI, which counts individual events of 10 s
     # or more. The model labels whole minutes, so this is its own index and is named as such.
-
-
-def has_ecg(data_dir: Path, name: str) -> bool:
-    return "ECG" in wfdb.rdheader(str(Path(data_dir) / name)).sig_name
-
-
-def load_physionet_record(data_dir: Path, name: str) -> tuple[np.ndarray, float, list[str] | None]:
-    """A PhysioNet Apnea-ECG record -> (ECG in mV, fs, expert labels per minute or None)."""
-    path = str(Path(data_dir) / name)
-    signals, fields = wfdb.rdsamp(path, channel_names=["ECG"])
-    # The ECG channel by NAME, not position: Apnea-ECG's "r" records (a01r...) hold
-    # respiration and SpO2 channels, and their first channel is not an ECG at all.
-    labels = None
-    if (Path(data_dir) / f"{name}.apn").exists():
-        ann = wfdb.rdann(path, "apn")
-        labels = [str(s) for s in ann.symbol]
-    return signals[:, 0], float(fields["fs"]), labels

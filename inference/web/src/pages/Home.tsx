@@ -2,12 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { api, type PatientNights, type PatientSummary } from "../api";
-import { Placeholder } from "../components/common";
+import { Avatar, Placeholder } from "../components/common";
 import { ModelBar } from "../components/ModelBar";
 import { formatDuration, patientPath, plural } from "../format";
 import { useModel } from "../model";
-
-const RATE_SCALE = 60;   // minutes per hour at a full bar
 
 export function Home() {
   const query = useQuery({ queryKey: ["patients"], queryFn: api.patients });
@@ -72,12 +70,9 @@ export function Home() {
                onChange={event => setFilter(event.target.value)} />
       </ModelBar>
       {shown.length ? (
-        <>
-          <div className="list-head" aria-hidden="true"><span>Patient</span><span>Worst night</span></div>
-          {shown.map(({ patient, nights, stale }) => (
-            <PatientRow key={patient.id} patient={patient} nights={nights} stale={stale && nights !== undefined} />
-          ))}
-        </>
+        shown.map(({ patient, nights, stale }) => (
+          <PatientRow key={patient.id} patient={patient} nights={nights} stale={stale && nights !== undefined} />
+        ))
       ) : (
         <Placeholder title="No patient matches" />
       )}
@@ -91,41 +86,22 @@ function PatientRow({ patient, nights, stale }: {
   stale: boolean;
 }) {
   const recorded = nights?.nights.reduce((sum, n) => sum + n.duration_s, 0);
-  const analysed = nights?.nights.filter(n => n.analysis) ?? [];
-  const worst = analysed.reduce<(typeof analysed)[number] | null>(
-    (top, n) => (!top || n.analysis!.apnea_minutes_per_hour > top.analysis!.apnea_minutes_per_hour ? n : top), null);
+  const analysed = nights?.nights.filter(n => n.analysis).length;
 
   return (
     <Link className="row-card row-link" to={patientPath(patient.id)} aria-busy={stale || undefined}>
-      <div className="row-info">
-        <h3 className="row-title">{patient.id}</h3>
-        <p className="row-meta">
-          {plural(patient.nights, "night")}
-          {recorded !== undefined && ` · ${formatDuration(recorded)} recorded`}
-          {analysed.length > 0 && ` · ${analysed.length} of ${patient.nights} analysed`}
-        </p>
-      </div>
-      <div className="row-result"
-           title={worst ? `Night ${worst.number}: ${worst.analysis!.apnea_minutes_per_hour.toFixed(1)} apnea minutes per hour` : undefined}>
-        {!nights ? (
-          <span className="muted">…</span>
-        ) : !patient.nights ? (
-          <span className="muted">No nights</span>
-        ) : !worst ? (
-          <span className="muted">Not analysed</span>
-        ) : (
-          <>
-            <span className="rate-bar" aria-hidden="true">
-              <span style={{ width: `${Math.min(100, (100 * worst.analysis!.apnea_minutes_per_hour) / RATE_SCALE)}%` }} />
-            </span>
-            <span className="rate">
-              {worst.analysis!.apnea_minutes_per_hour.toFixed(1)}<span className="rate-unit"> min/h</span>
-            </span>
-          </>
-        )}
+      <div className="row-info row-person">
+        <Avatar />
+        <div>
+          <h3 className="row-title">{patient.id}</h3>
+          <p className="row-meta">
+            {plural(patient.nights, "night")}
+            {recorded !== undefined && ` · ${formatDuration(recorded)} recorded`}
+            {analysed !== undefined && patient.nights > 0 && ` · ${analysed} of ${patient.nights} analysed`}
+          </p>
+        </div>
       </div>
       <span className="chevron" aria-hidden="true">›</span>
     </Link>
   );
 }
-// "Worst night" is the analysed night with the most apnea minutes per hour, for the selected model.

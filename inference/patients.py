@@ -34,10 +34,12 @@ def _natural_key(name: str) -> list:
 
 
 def night_files(folder: Path) -> list[Path]:
-    """A patient's .csv files, in natural name order."""
+    """A patient's .csv files, oldest first."""
     files = [f for f in folder.iterdir()
              if f.is_file() and _visible(f) and f.suffix.lower() == NIGHT_SUFFIX]
-    return sorted(files, key=lambda f: _natural_key(f.name))
+    return sorted(files, key=lambda f: (f.stat().st_mtime_ns, _natural_key(f.name)))
+    # Ordered by modification time, so the oldest recording is Night 1; files with the same time
+    # are ordered by name.
 
 
 def night_file(folder: Path, name: str) -> Path | None:

@@ -4,7 +4,6 @@ import io
 import json
 import logging
 import os
-import re
 import threading
 from pathlib import Path
 
@@ -14,10 +13,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from patients import list_nights, list_patients, night_file, patient_dirs, read_night
-from pipeline import FS, ApneaModel, analyse, has_ecg, load_physionet_record
+from pipeline import FS, ApneaModel, analyse
 
 MODEL_PATH = Path(os.environ.get("MODEL_PATH", "/models/model_int8.tflite"))
-DATA_DIR = Path(os.environ.get("DATA_DIR", "/data/apnea-ecg"))
 PATIENTS_DIR = Path(os.environ.get("PATIENTS_DIR", "/patients"))
 RECORDING_FS = float(os.environ.get("RECORDING_FS", FS))
 # The ESP32's sampling rate. A night file is bare samples with no header to say it, so the rate
@@ -43,11 +41,9 @@ if MODEL_PATH.name not in THRESHOLDS:
 THRESHOLD = THRESHOLDS[MODEL_PATH.name]
 SMOOTH_WINDOW = int(os.environ.get("SMOOTH_WINDOW", "5"))
 
-RECORD_NAME = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
-# Record names become file paths, so anything like "../" is refused before it reaches the disk.
-
 model = ApneaModel(MODEL_PATH)
-app = FastAPI(title="Apnea inference", version="0.1")
+app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+# No /docs, /redoc or /openapi.json routes.
 app.mount("/assets", StaticFiles(directory=STATIC_DIR / "assets", check_dir=False), name="assets")
 # Vite's hashed JavaScript and CSS files, referenced by index.html as /assets/...
 
@@ -79,7 +75,7 @@ def _model(name: str) -> tuple[ApneaModel, float]:
     # again. The name is looked up among the listed files, never joined onto the folder.
 
 
-MODEL_QUERY = Query(MODEL_PATH.name, description="a model file in the models folder")
+MODEL_QUERY = Query(MODEL_PATH.name)
 
 log = logging.getLogger("uvicorn.error")
 
@@ -113,12 +109,22 @@ def _kept_result(patient: str, night: Path, model_name: str) -> dict | None:
     return kept.get("result") if kept.get("source") == source else None
 
 
+def _readable_json(value, depth: int = 0) -> str:
+    if not isinstance(value, dict) or not value:
+        return json.dumps(value)
+    pad = "  " * (depth + 1)
+    fields = [f"{pad}{json.dumps(key)}: {_readable_json(item, depth + 1)}" for key, item in value.items()]
+    return "{\n" + ",\n".join(fields) + "\n" + "  " * depth + "}"
+    # Objects are spread over one line per field; lists stay on a single line, so each per-minute
+    # list (prob, prob_smoothed, apnea) is one long line instead of one line per minute.
+
+
 def _keep_result(patient: str, night: Path, model_name: str, result: dict) -> None:
     stored = _stored_path(patient, night, model_name)
     try:
         stored.parent.mkdir(parents=True, exist_ok=True)
         partial = stored.with_suffix(".partial")
-        partial.write_text(json.dumps({"source": _source(night, model_name), "result": result}))
+        partial.write_text(_readable_json({"source": _source(night, model_name), "result": result}) + "\n")
         os.replace(partial, stored)
     except OSError as exc:
         log.warning("analysis of %s/%s not stored: %s", patient, night.name, exc)
@@ -126,9 +132,9 @@ def _keep_result(patient: str, night: Path, model_name: str, result: dict) -> No
     # never sees half a file. A failed write is logged and the result is still returned.
 
 
-@app.get("/", include_in_schema=False)
-@app.get("/patient/{patient}", include_in_schema=False)
-@app.get("/patient/{patient}/night/{night}", include_in_schema=False)
+@app.get("/")
+@app.get("/patient/{patient}")
+@app.get("/patient/{patient}/night/{night}")
 def page(patient: str | None = None, night: str | None = None) -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
     # One self-contained page, no CDN: it fetches the /api routes below and works offline, on a
@@ -209,38 +215,9 @@ def health() -> dict:
             "input_quantization": {"scale": model.in_scale, "zero_point": model.in_zero}}
 
 
-@app.get("/records")
-def records() -> list[str]:
-    if not DATA_DIR.is_dir():
-        return []
-    return sorted(p.stem for p in DATA_DIR.glob("*.hea")
-                  if (DATA_DIR / f"{p.stem}.dat").exists() and has_ecg(DATA_DIR, p.stem))
-
-
-@app.get("/records/{name}")
-def analyse_record(name: str) -> dict:
-    if not RECORD_NAME.match(name) or not (DATA_DIR / f"{name}.hea").exists():
-        raise HTTPException(404, f"no record named {name!r}")
-    if not has_ecg(DATA_DIR, name):
-        raise HTTPException(422, f"record {name!r} has no ECG channel")
-
-    ecg, fs, labels = load_physionet_record(DATA_DIR, name)
-    result = {"record": name, **analyse(ecg, fs, model, THRESHOLD, SMOOTH_WINDOW)}
-
-    if labels is not None:
-        labels = labels[:result["minutes"]]
-        truth = np.array([s == "A" for s in labels])
-        pred = np.array(result["apnea"][:len(labels)])
-        result["expert_labels"] = labels
-        result["agreement_with_expert"] = float(np.mean(pred == truth))
-        # Apnea-ECG's expert annotations: shown next to the prediction for review, never used
-        # to produce it.
-    return result
-
-
 @app.post("/analyze")
 async def analyse_upload(file: UploadFile = File(...),
-                         fs: float = Query(FS, gt=0, description="sampling rate of the upload, Hz")) -> dict:
+                         fs: float = Query(FS, gt=0)) -> dict:
     raw = await file.read()
     try:
         if (file.filename or "").endswith(".npy"):
