@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-quer
 import { api, summaryOf, type Night, type PatientNights } from "../api";
 import { Avatar, Crumbs, NightMeta, Placeholder, Spinner, Stat } from "../components/common";
 import { ModelBar } from "../components/ModelBar";
+import { UploadButton, UploadResult, useNightUpload } from "../components/UploadNights";
 import { formatDuration, nightPath } from "../format";
 import { useModel } from "../model";
 
@@ -33,6 +34,7 @@ function PatientView({ patient }: { patient: string }) {
 
   const [running, setRunning] = useState<Running | null>(null);
   const [failures, setFailures] = useState<Record<string, string>>({});
+  const upload = useNightUpload(patient);
   const alive = useRef(true);
 
   useEffect(() => {
@@ -77,17 +79,22 @@ function PatientView({ patient }: { patient: string }) {
   return (
     <>
       <Crumbs items={[{ label: "Patients", to: "/" }, { label: patient }]} />
-      <div className="title-row">
-        <Avatar large />
-        <h1 tabIndex={-1}>{patient}</h1>
+      <div className="page-head">
+        <div className="title-row">
+          <Avatar large />
+          <h1 tabIndex={-1}>{patient}</h1>
+        </div>
+        {!query.isError && <UploadButton progress={upload.progress} onFiles={upload.upload} />}
       </div>
+      <UploadResult report={upload.report} />
       {query.isError ? (
         <Placeholder title={`Could not open ${patient}`}>{query.error.message}</Placeholder>
       ) : !nights ? (
         <Placeholder title="Loading…" />
       ) : !nights.length ? (
-        <Placeholder title="No nights for this patient">
-          Each <code>.csv</code> file in this patient's folder is one night.
+        <Placeholder title="No nights yet">
+          Add this patient's recordings with <strong>Upload nights</strong>, one <code>.csv</code> file
+          per night.
         </Placeholder>
       ) : (
         <>

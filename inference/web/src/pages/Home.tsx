@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { Link, useNavigate } from "react-router";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, type PatientNights, type PatientSummary } from "../api";
-import { Avatar, Placeholder } from "../components/common";
+import { Avatar, Placeholder, Spinner } from "../components/common";
 import { ModelBar } from "../components/ModelBar";
 import { formatDuration, patientPath, plural } from "../format";
 import { useModel } from "../model";
@@ -11,6 +11,7 @@ export function Home() {
   const query = useQuery({ queryKey: ["patients"], queryFn: api.patients });
   const { chosen } = useModel();
   const [filter, setFilter] = useState("");
+  const [creating, setCreating] = useState(false);
   const search = useRef<HTMLInputElement>(null);
 
   const patients = query.data ?? [];
@@ -47,14 +48,6 @@ export function Home() {
 
   if (query.isError) return <Placeholder title="Could not load patients">{query.error.message}</Placeholder>;
   if (query.isPending) return <Placeholder title="Loading…" />;
-  if (!patients.length) {
-    return (
-      <Placeholder title="No patients yet">
-        Copy each patient's recordings into <code>inference/data/patients/&lt;patient&gt;/</code>, one{" "}
-        <code>.csv</code> file per night, then reload this page.
-      </Placeholder>
-    );
-  }
 
   const term = filter.trim().toLowerCase();
   const shown = rows.filter(({ patient }) => patient.id.toLowerCase().includes(term));
@@ -62,23 +55,70 @@ export function Home() {
 
   return (
     <>
-      <h1 tabIndex={-1}>Patients</h1>
-      <p className="subtitle">{plural(patients.length, "patient")} · {plural(nights, "night")}</p>
-      <ModelBar>
-        <input ref={search} className="search" type="search" placeholder="Search patients  ( / )"
-               aria-label="Search patients" autoComplete="off" value={filter}
-               onChange={event => setFilter(event.target.value)} />
-      </ModelBar>
-      {shown.length ? (
-        shown.map(({ patient, nights, stale }) => (
-          <PatientRow key={patient.id} patient={patient} nights={nights} stale={stale && nights !== undefined} />
-        ))
+      <div className="page-head">
+        <div>
+          <h1 tabIndex={-1}>Patients</h1>
+          <p className="subtitle">{plural(patients.length, "patient")} · {plural(nights, "night")}</p>
+        </div>
+        {!creating && (
+          <button type="button" className="btn" onClick={() => setCreating(true)}>Create patient</button>
+        )}
+      </div>
+      {creating && <NewPatientForm onClose={() => setCreating(false)} />}
+      {!patients.length ? (
+        <Placeholder title="No patients yet">
+          Start with <strong>Create patient</strong>, then upload the patient's nights.
+        </Placeholder>
       ) : (
-        <Placeholder title="No patient matches" />
+        <>
+          <ModelBar>
+            <input ref={search} className="search" type="search" placeholder="Search patients  ( / )"
+                   aria-label="Search patients" autoComplete="off" value={filter}
+                   onChange={event => setFilter(event.target.value)} />
+          </ModelBar>
+          {shown.length ? (
+            shown.map(({ patient, nights, stale }) => (
+              <PatientRow key={patient.id} patient={patient} nights={nights} stale={stale && nights !== undefined} />
+            ))
+          ) : (
+            <Placeholder title="No patient matches" />
+          )}
+        </>
       )}
     </>
   );
 }
+
+function NewPatientForm({ onClose }: { onClose: () => void }) {
+  const [name, setName] = useState("");
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const create = useMutation({
+    mutationFn: api.createPatient,
+    onSuccess: async ({ id }) => {
+      await queryClient.invalidateQueries({ queryKey: ["patients"] });
+      navigate(patientPath(id));
+    },
+  });
+
+  return (
+    <form className="inline-form" onSubmit={event => { event.preventDefault(); create.mutate(name.trim()); }}>
+      <label htmlFor="new-patient">Patient name</label>
+      <input id="new-patient" className="search" autoFocus autoComplete="off" spellCheck={false}
+             placeholder="e.g. patient_4" value={name}
+             onChange={event => { setName(event.target.value); create.reset(); }}
+             onKeyDown={event => { if (event.key === "Escape") onClose(); }} />
+      <button type="submit" className="btn btn-primary" disabled={!name.trim() || create.isPending}>
+        {create.isPending ? <><Spinner />Creating…</> : "Create"}
+      </button>
+      <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+      <p className={create.isError ? "form-note error" : "form-note"}>
+        {create.isError ? create.error.message : "Letters, digits, spaces, _ and -"}
+      </p>
+    </form>
+  );
+}
+// Creating the patient opens its page, where its nights can be uploaded.
 
 function PatientRow({ patient, nights, stale }: {
   patient: PatientSummary;

@@ -97,6 +97,25 @@ export const api = {
 
   analyse: (patient: string, file: string, model: string) =>
     getJSON<Analysis>(analysisUrl(patient, file, model), { method: "POST" }),
+
+  createPatient: (id: string) =>
+    getJSON<{ id: string }>("/api/patients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    }),
+
+  uploadNight(patient: string, file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("modified_ms", String(file.lastModified));
+    return getJSON<{ patient: string; file: string }>(`/api/patients/${enc(patient)}/nights`, {
+      method: "POST",
+      body: form,
+    });
+  },
+  // lastModified is the file's modification time on this computer; the server gives it to the
+  // saved copy, which sets the night's place in the order.
 };
 
 export const summaryOf = (result: Analysis): NightSummary => ({ minutes: result.minutes, ...result.summary });

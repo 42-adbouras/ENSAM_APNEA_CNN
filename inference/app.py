@@ -8,11 +8,13 @@ import threading
 from pathlib import Path
 
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
-from patients import list_nights, list_patients, night_file, patient_dirs, read_night
+from patients import (add_night, create_patient, list_nights, list_patients, night_file,
+                      patient_dirs, read_night)
 from pipeline import FS, ApneaModel, analyse
 
 MODEL_PATH = Path(os.environ.get("MODEL_PATH", "/models/model_int8.tflite"))
@@ -165,6 +167,22 @@ def patients() -> list[dict]:
     return list_patients(PATIENTS_DIR)
 
 
+class NewPatient(BaseModel):
+    id: str
+
+
+@app.post("/api/patients", status_code=201)
+def new_patient(body: NewPatient) -> dict:
+    try:
+        folder = create_patient(PATIENTS_DIR, body.id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except FileExistsError as exc:
+        raise HTTPException(409, f"a patient named {exc.args[0]!r} already exists") from exc
+    return {"id": folder.name}
+    # Creates an empty folder in the patients folder; the patient is listed from then on.
+
+
 @app.get("/api/patients/{patient}")
 def patient_nights(patient: str, model: str = MODEL_QUERY) -> dict:
     folder = _patient_folder(patient)
@@ -175,6 +193,23 @@ def patient_nights(patient: str, model: str = MODEL_QUERY) -> dict:
     return {"patient": patient, "model": model, "sample_rate_hz": RECORDING_FS, "nights": nights}
     # "analysis" is the summary of the kept result for `model`, or None when the night has not
     # been analysed with it.
+
+
+@app.post("/api/patients/{patient}/nights", status_code=201)
+def upload_night(patient: str, file: UploadFile = File(...),
+                 modified_ms: int | None = Form(None, ge=0)) -> dict:
+    folder = _patient_folder(patient)
+    name = Path(file.filename or "").name
+    modified_ns = None if modified_ms is None else modified_ms * 1_000_000
+    try:
+        add_night(folder, name, file.file, modified_ns, min_samples=int(60 * RECORDING_FS))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except FileExistsError as exc:
+        raise HTTPException(409, "this patient already has a night with this name") from exc
+    return {"patient": patient, "file": name}
+    # One night per request. modified_ms is the original file's modification time, in
+    # milliseconds, as the browser reports it; without it the night is dated by the upload.
 
 
 def _night_path(patient: str, night: str) -> Path:

@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import os
 import re
+import shutil
 from functools import lru_cache
 from pathlib import Path
+from typing import BinaryIO
 
 import numpy as np
 
 NIGHT_SUFFIX = ".csv"
+PATIENT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9 _-]{0,63}")
+NIGHT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9 _.-]{0,95}\.csv", re.IGNORECASE)
+# Names accepted from the interface. Both start with a letter or digit, so neither can be hidden
+# (".name"), "." or "..", and neither can hold a "/".
 
 
 def _visible(path: Path) -> bool:
@@ -92,6 +99,84 @@ def _count_samples(path: str, size: int, mtime_ns: int) -> int:
 def count_samples(path: Path) -> int:
     stat = path.stat()
     return _count_samples(str(path), stat.st_size, stat.st_mtime_ns)
+
+
+def create_patient(root: Path, name: str) -> Path:
+    """Creates a new patient's folder. ValueError for a name not allowed, FileExistsError if taken."""
+    name = " ".join(name.split())
+    if not PATIENT_NAME.fullmatch(name):
+        raise ValueError("a patient name is 1 to 64 letters, digits, spaces, _ or -, "
+                         "starting with a letter or digit")
+    if name.lower() in (existing.lower() for existing in patient_dirs(root)):
+        raise FileExistsError(name)
+    folder = root / name
+    try:
+        folder.mkdir()
+    except FileExistsError:
+        raise FileExistsError(name) from None
+    return folder
+    # " ".join(name.split()) drops spaces at both ends and turns each run of spaces into one, so
+    # "John  Doe " becomes "John Doe". Names are compared without case, so "Patient_1" is refused
+    # next to "patient_1" on every file system, not only on case-insensitive ones such as macOS's.
+
+
+_HEAD_BYTES = 1 << 16
+
+
+def _check_start(head: bytes) -> None:
+    lines = head.splitlines()
+    if len(head) == _HEAD_BYTES:
+        lines = lines[:-1]
+    lines = [line for line in lines if line.strip()]
+    if lines and _is_header(lines[0]):
+        lines = lines[1:]
+    for line in lines:
+        try:
+            float(line.split(b",", 1)[0])
+        except ValueError:
+            text = line[:40].decode("utf-8", "replace")
+            raise ValueError(f"not one ECG sample per line: {text!r}" if text.isprintable()
+                             else "not a text file of ECG samples") from None
+    # Reads the lines of the file's first 64 KB the way read_night() does: an optional header,
+    # then one number per line in the first column. When the block is full, its last line is
+    # skipped, since it may be cut in the middle.
+
+
+def add_night(folder: Path, name: str, data: BinaryIO, modified_ns: int | None,
+              min_samples: int) -> Path:
+    """Saves an uploaded night file in a patient's folder.
+
+    ValueError when the name or the content is not a night's; FileExistsError when the patient
+    already has a file of that name, which is never replaced.
+    """
+    if not NIGHT_NAME.fullmatch(name):
+        raise ValueError("a night file name must end in .csv and start with a letter or digit")
+    if name.lower() in (f.name.lower() for f in folder.iterdir()):
+        raise FileExistsError(name)
+
+    head = data.read(_HEAD_BYTES)
+    _check_start(head)
+
+    target = folder / name
+    partial = folder / f".{name}.partial"
+    try:
+        with open(partial, "wb") as out:
+            out.write(head)
+            shutil.copyfileobj(data, out, 1 << 20)
+        samples = count_samples(partial)
+        if samples < min_samples:
+            raise ValueError(f"shorter than one minute ({samples} samples)")
+        if modified_ns is not None:
+            os.utime(partial, ns=(modified_ns, modified_ns))
+        if target.exists():
+            raise FileExistsError(name)
+        os.replace(partial, target)
+    finally:
+        partial.unlink(missing_ok=True)
+    return target
+    # The file is written under a hidden ".partial" name, which night_files() skips, and renamed
+    # once complete, so a half-written upload never appears as a night. os.utime gives it the
+    # modification time of the original file, which sets its place in the night order.
 
 
 def list_patients(root: Path) -> list[dict]:
