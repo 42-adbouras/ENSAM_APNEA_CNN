@@ -1,9 +1,0 @@
-*
-
-!requirements.txt
-!pipeline.py
-!patients.py
-!app.py
-!web/
-web/node_modules/
-web/dist/

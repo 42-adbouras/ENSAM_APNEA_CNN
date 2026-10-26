@@ -1,0 +1,9 @@
+*
+
+!requirements.txt
+!source/
+source/__pycache__/
+source/make_test_nights.py
+!web/
+web/node_modules/
+web/dist/

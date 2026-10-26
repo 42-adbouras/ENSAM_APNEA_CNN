@@ -18,6 +18,9 @@ ps:
 shell:
 	$(COMPOSE) exec inference bash
 
+db-shell:
+	$(COMPOSE) exec database sh -c 'psql -U "$$DB_USER" -d "$$DB_NAME"'
+
 stop:
 	$(COMPOSE) stop
 
@@ -28,4 +31,4 @@ clean:
 	$(COMPOSE) down -v
 	docker system prune -af
 
-.PHONY: build up rebuild logs ps shell stop down clean
+.PHONY: build up rebuild logs ps shell db-shell stop down clean

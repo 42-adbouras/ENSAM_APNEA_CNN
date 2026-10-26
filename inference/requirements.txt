@@ -1,6 +1,0 @@
-numpy==1.26.4              # arrays of ECG samples, windows and probabilities
-scipy==1.11.4              # filters and resampling of the ECG
-ai-edge-litert==2.2.0      # runs the .tflite models (LiteRT, formerly TensorFlow Lite)
-fastapi==0.141.1           # the HTTP API and the routes that serve the interface
-uvicorn==0.53.0            # the web server that runs the FastAPI app
-python-multipart==0.0.32   # reads file uploads, for POST /analyze

@@ -1,13 +1,26 @@
 services:
+  database:
+    image: apnea-database:0.2
+    container_name: apnea_database
+    build:
+      context: ./services/database
+    env_file: .env
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$DB_USER\" -d \"$$DB_NAME\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   inference:
-    image: apnea-inference:0.1
+    image: apnea-inference:0.2
     container_name: apnea_inference
     build:
-      context: ./inference
+      context: ./services/inference
     ports:
       - "8000:8000"
     env_file: .env
+    depends_on:
+      database:
+        condition: service_healthy
     volumes:
-      - ./inference/data/models:/models
-      - ./inference/data/patients:/patients
-      - ./inference/data/analyses:/analyses
+      - ./services/inference/data/models:/models

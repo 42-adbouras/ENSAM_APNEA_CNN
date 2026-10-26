@@ -1,29 +1,34 @@
 *
 
-!src/
-!src/model.ipynb
+!training/
+!training/model.ipynb
 !/requirements.txt
 !results/
 
-!inference/
-!inference/data/
-!inference/data/models/
-!inference/data/patients/
-!inference/data/patients/patient_1/
-!inference/data/patients/patient_2/
-!inference/data/patients/patient_3/
-!inference/data/patients/*/NIGHT*.CSV
-!inference/data/models/*.tflite
+!services/
+!services/database/
+!services/database/Dockerfile
+!services/database/setup/
+!services/database/setup/setup.sh
+!services/database/.dockerignore
+!services/inference/
+!services/inference/data/
+!services/inference/data/models/
+!services/inference/data/models/*.tflite
 
-!inference/Dockerfile
-!inference/app.py
-!inference/patients.py
-!inference/pipeline.py
-!inference/requirements.txt
-!inference/web/
-!inference/web/**
-inference/web/node_modules/
-inference/web/dist/
+!services/inference/Dockerfile
+!services/inference/source/
+!services/inference/source/app.py
+!services/inference/source/patients.py
+!services/inference/source/db.py
+!services/inference/source/store.py
+!services/inference/source/pipeline.py
+!services/inference/requirements.txt
+!services/inference/web/
+!services/inference/web/**
+!services/inference/.dockerignore
+services/inference/web/node_modules/
+services/inference/web/dist/
 
 !docker-compose.yml
 
@@ -31,10 +36,10 @@ inference/web/dist/
 
 !README.md
 !INFERENCE.md
+!DATABASE.md
 !docs/
 !docs/screenshots/
 !docs/screenshots/*.png
 !.env.example
 
-!inference/.dockerignore
 !.gitignore

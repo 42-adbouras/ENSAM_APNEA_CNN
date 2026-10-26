@@ -4,7 +4,7 @@ Sleep apnea detection from a single-lead ECG using a 1D convolutional neural net
 
 The project has two parts:
 
-- **Training**: one notebook, [src/model.ipynb](src/model.ipynb), from downloading the data to
+- **Training**: one notebook, [training/model.ipynb](training/model.ipynb), from downloading the data to
   scoring the TFLite models on the test set.
 - **Inference service**: a Docker service with a web interface that runs those models on overnight
   recordings, patient by patient. See [INFERENCE.md](INFERENCE.md).
@@ -22,7 +22,7 @@ The project has two parts:
 | **Model** | Dilated residual 1D CNN: 4-layer stem, 7 residual blocks (dilations 1 to 64), 69,646 parameters |
 | **Loss** | Binary cross-entropy |
 | **Framework** | TensorFlow 2.20 (Keras 3) |
-| **Review interface** | FastAPI + React, in Docker ([INFERENCE.md](INFERENCE.md)) |
+| **Review interface** | FastAPI + React, with a PostgreSQL database, in Docker ([INFERENCE.md](INFERENCE.md)) |
 
 ---
 
@@ -63,7 +63,7 @@ near-normal `c`), so validation contains the same mix as the data it stands in f
 
 ```
 ENSAM_APNEA_CNN/
-├── src/
+├── training/
 │   └── model.ipynb          # training: data, model, training, conversion, test
 ├── data/                    # created by the notebook, git-ignored
 │   ├── apnea-ecg/           # raw PhysioNet records (.hea, .dat, .apn, .qrs), ~420 MB
@@ -74,21 +74,27 @@ ENSAM_APNEA_CNN/
 │   ├── training_curves.png  # training figure
 │   ├── model_int8.tflite    # int8 model for the ESP32-S3
 │   └── model_float32.tflite # the same model unquantised, float32 throughout
-├── inference/               # the inference service, see INFERENCE.md
-│   ├── app.py               # HTTP API
-│   ├── pipeline.py          # preprocessing and model wrapper
-│   ├── patients.py          # patients folder and night files
-│   ├── web/                 # web interface (React + TypeScript)
-│   ├── data/models/         # .tflite models the service runs
-│   ├── data/patients/       # recordings: one folder per patient, one .csv per night
-│   ├── data/analyses/       # stored results, written by the service (git-ignored)
-│   └── Dockerfile, requirements.txt
+├── services/
+│   ├── inference/           # the inference service, see INFERENCE.md
+│   │   ├── source/          # the Python code:
+│   │   │   ├── app.py           # HTTP API
+│   │   │   ├── pipeline.py      # preprocessing and model wrapper
+│   │   │   ├── patients.py      # rules for patient names and night files
+│   │   │   └── db.py, store.py  # database tables, and reading and writing them
+│   │   ├── web/             # web interface (React + TypeScript)
+│   │   ├── data/models/     # .tflite models the service runs
+│   │   └── Dockerfile, requirements.txt
+│   └── database/            # the PostgreSQL database, see DATABASE.md
+│       ├── Dockerfile       # its image (PostgreSQL 18)
+│       ├── setup/setup.sh   # starts PostgreSQL with the settings from .env
+│       └── data/            # its files: patients, recordings, results (git-ignored)
 ├── requirements.txt         # Python packages of the training notebook
-├── docker-compose.yml       # runs the inference service
+├── docker-compose.yml       # runs the inference service and its database
 ├── Makefile                 # make up, make rebuild, make logs, make shell...
 ├── .env.example             # service settings; copy to .env
 ├── INFERENCE.md             # inference service guide
 ├── DOCKER.md                # how the service's Docker image and container are set up
+├── DATABASE.md              # the database: tables, looking at the data, backups
 └── docs/screenshots/        # interface screenshots used by INFERENCE.md
 ```
 
@@ -105,8 +111,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Then open [src/model.ipynb](src/model.ipynb), select the `.venv` kernel, and run all cells. The
-notebook finds the project folder on its own, whether the kernel starts in `src/` or at the root.
+Then open [training/model.ipynb](training/model.ipynb), select the `.venv` kernel, and run all cells. The
+notebook finds the project folder on its own, whether the kernel starts in `training/` or at the
+root.
 
 A first run downloads the dataset (~420 MB from PhysioNet) and builds the processed arrays. Later
 runs skip both.
@@ -118,7 +125,7 @@ runs skip both.
 Docker Desktop and GNU Make, nothing else:
 
 ```bash
-cp .env.example .env
+cp .env.example .env    # then replace change-me with a password, in both lines
 make up
 ```
 
@@ -126,9 +133,9 @@ Then open **http://localhost:8000**: a list of patients, each with their recorde
 model and analyse a night, or all of a patient's nights at once, to see the apnea minutes per hour,
 the flagged periods and a minute-by-minute chart.
 
-Recordings go in `inference/data/patients/<patient>/`, one `.csv` file per night (one ECG sample
-per line, in mV, at 100 Hz). Three test patients, built from Apnea-ECG's test records, are
-included.
+Patients, recordings and results are all kept in the database. Add recordings, one `.csv` file per
+night (one ECG sample per line, in mV, at 100 Hz), with **Create patient** and **Upload nights** in
+the interface.
 
 The full documentation is in [INFERENCE.md](INFERENCE.md).
 

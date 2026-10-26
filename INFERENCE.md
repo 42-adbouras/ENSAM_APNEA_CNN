@@ -1,10 +1,6 @@
 # Apnea review: the inference service
 
-**Apnea review** is a small web application that runs the project's trained models on overnight
-ECG recordings. You copy each patient's recordings into a folder, open the page in a browser, and
-for every night you get a minute-by-minute estimate of when the patient had sleep apnea.
-
-It runs on your own computer inside Docker. Nothing is sent to the internet.
+**Apnea review** is a small web application that runs the project's trained models on overnight ECG recordings. You upload each patient's recordings, open the page in a browser, and for every night you get a minute-by-minute estimate of when the patient had sleep apnea.
 
 ---
 
@@ -38,10 +34,14 @@ From the project folder, create the settings file, `.env` (only the first time):
 ```bash
 MODEL_PATH=/models/model_int8.tflite
 MODEL_THRESHOLDS=model_int8.tflite=0.23,model_float32.tflite=0.20
-PATIENTS_DIR=/patients
-ANALYSES_DIR=/analyses
 RECORDING_FS=100
+DB_USER=apnea
+DB_PASS=change-me
+DB_NAME=apnea
+DB_URL=postgresql://apnea:change-me@database:5432/apnea
 ```
+
+Replace `change-me` with a password of your choice, in both lines.
 
 Each line is one setting, explained in [Settings](#7-settings). Then start the service:
 
@@ -53,7 +53,11 @@ The first `make up` takes a few minutes, because it downloads and builds everyth
 
 Then open **http://localhost:8000** in your browser.
 
-To check that it is running, `make ps` should show the container as `(healthy)`.
+The patient list starts empty: add patients and their nights as described in
+[Adding recordings](#3-adding-recordings).
+
+To check that it is running, `make ps` should show both containers, `apnea_database` and
+`apnea_inference`, as `(healthy)`.
 
 ### Stopping it
 
@@ -61,7 +65,8 @@ To check that it is running, `make ps` should show the container as `(healthy)`.
 make stop    # stop the service; make up starts it again
 ```
 
-Stopping does not lose anything: recordings and results are ordinary files in the project folder.
+Stopping does not lose anything: patients, recordings and results are in the database, which keeps
+its data in `services/database/data/`.
 
 ---
 
@@ -81,6 +86,8 @@ This is the first page. Each row is one patient, with:
 
 Type in **Search patients** to filter the list. The **Model** menu selects the model whose results are shown. Click a row to open the patient.
 
+**Create patient** adds a new patient; see [Adding recordings](#3-adding-recordings).
+
 ### 2.2 A patient's nights
 
 ![A patient's nights](docs/screenshots/patient.png)
@@ -92,7 +99,8 @@ Below, one row per night, **newest at the top**. "Night 1" is always the oldest 
 - **a result**, such as `43.6 min/h`, with a red bar (the bar is full at 60 minutes per hour), or
 - **Not analysed**, when the selected model has not been run on that night yet.
 
-Click a row to open the night.
+Click a row to open the night. **Upload nights** adds recordings to this patient; see
+[Adding recordings](#3-adding-recordings).
 
 **Analyse all nights** runs the model on every night that is not analysed yet, one after the other,
 newest first. The button shows the progress and the row being analysed shows a spinner:
@@ -117,8 +125,8 @@ When you first open a night that has not been analysed, the page looks like this
 2. Click **Analyse**. The result appears after one to two seconds.
 
 The result is saved, so the next time anyone opens this night with this model it appears
-immediately, even after a restart. Clicking **Analyse** again runs the model again and replaces the
-saved result.
+immediately, even after a restart. Clicking **Analyse** again runs the model again: the new result
+is shown, and the earlier ones stay in the database.
 
 To move between nights, use the buttons at the top right, which name the previous and next night.
 The links at the top (**Patients / patient_3 / Night 4**) take you back up.
@@ -175,7 +183,7 @@ printed only if it is open.
 
 ### 2.6 Choosing a model
 
-The **Model** menu lists every model file in `inference/data/models/`, with its threshold next to
+The **Model** menu lists every model file in `services/inference/data/models/`, with its threshold next to
 it. A model without a threshold is shown greyed out with "(no threshold)" and cannot be selected
 
 - The choice applies to every page, until you reload the page.
@@ -186,33 +194,38 @@ it. A model without a threshold is shown greyed out with "(no threshold)" and ca
 
 ## 3. Adding recordings
 
-#### [TODO]: file upload
+Every patient and every night is stored in the database: the night's file, byte for byte, with its
+details and its results. They are added from the interface.
 
-Recordings live in `inference/data/patients/`. **One folder per patient, one `.csv` file per night:**
+**Create a patient.** On the patients page, click **Create patient**, type a name and click
+**Create**. The name can use letters, digits, spaces, `_` and `-`, and starts with a letter or digit.
+Several patients may have the same name: each one is told apart by a number, shown in its page's
+address (`/patient/7`). The new patient's page then opens.
 
-```
-inference/data/patients/
-├── patient_1/          # the folder name is the patient's name in the interface
-│   ├── NIGHT001.CSV    # one night
-│   ├── NIGHT002.CSV
-│   └── NIGHT003.CSV
-└── patient_2/
-    └── ...
-```
+![Creating a patient](docs/screenshots/new-patient.png)
 
-**To add a patient or a night:**
+**Upload nights.** On a patient's page, click **Upload nights** and choose one or more `.csv`
+files, for example from the SD card. They are sent one after the other; each night appears in the
+list as soon as it arrives. A short report then says how many nights were uploaded, and which files
+were not and why:
 
-1. Create the patient's folder if it is new.
-2. Copy the night files into it.
-3. Reload the page. No restart is needed.
+![Nights uploaded](docs/screenshots/upload.png)
 
-**Which files are valide nights.** Every file ending in `.csv` (or `.CSV`), whatever its name. Other files
-are ignored.
+A file is not uploaded when:
+
+- its name does not end in `.csv` (or `.CSV`);
+- the patient already has a night with the same name. An upload never replaces a recording;
+- the same night is already stored, for this patient or another one;
+- it is not one number per line (see the file format below);
+- it holds less than one minute of signal.
+
+Each uploaded night keeps the modification time of the original file, so the nights are numbered
+in the order they were recorded, whatever the order in which they were uploaded.
 
 **File format.**
 
 - One ECG sample per line, in **millivolts**.
-- Sampled at 100 Hz (another rate can be set with `RECORDING_FS`.
+- Sampled at 100 Hz (another rate can be set with `RECORDING_FS`).
 - An optional first line that is not a number, such as `ecg_mv`, is skipped as a header.
 - If a line has several columns separated by commas, only the first is used.
 
@@ -228,14 +241,14 @@ ecg_mv
 
 ## 4. Models and thresholds
 
-The service runs the `.tflite` files in `inference/data/models/`:
+The service runs the `.tflite` files in `services/inference/data/models/`:
 
 | File | Size | Threshold | Notes |
 |---|---|---|---|
 | `model_int8.tflite` | 124.5 KB | 0.23 | Full int8: the model for the ESP32-S3. Selected by default |
 | `model_float32.tflite` | 295.8 KB | 0.20 | The same network unquantised; same outputs as `model.keras` |
 
-Both come from the training notebook, [src/model.ipynb](src/model.ipynb), which writes them to
+Both come from the training notebook, [training/model.ipynb](training/model.ipynb), which writes them to
 `results/`.
 
 **Every model needs its own threshold.** The model gives a probability for each minute, and the
@@ -251,7 +264,7 @@ MODEL_THRESHOLDS=model_int8.tflite=0.23,model_float32.tflite=0.20
 
 **To add a model:**
 
-1. Copy the `.tflite` file into `inference/data/models/`.
+1. Copy the `.tflite` file into `services/inference/data/models/`.
 2. Add `<file name>=<threshold>` to `MODEL_THRESHOLDS` in `.env`, separated from the others by a
    comma.
 3. Run `make up`.
@@ -285,84 +298,18 @@ recordings it reproduces the training data to within 1.5e-6.
 
 ## 6. Where results are stored
 
-Each analysis is saved as one JSON file:
+Everything the service knows is kept in a **PostgreSQL database**, which Docker runs next to the
+service: the patients, the nights with their recordings, every analysis with its minute-by-minute
+values, the versions of the model files and a log of actions. Only the model files stay on disk.
+The database's files are in `services/database/data/`; they survive every `make` command, including
+`make clean`, and are not committed to git.
 
-```
-inference/data/analyses/<patient>/<night file>/<model file>.json
-```
+- Analysing a night again adds a new analysis; the interface shows the newest one.
+- An analysis counts for a night when it was made on the same content, with the same version of the
+  model file, the same threshold and the same smoothing. Otherwise the night shows "Not analysed".
 
-for example `inference/data/analyses/patient_1/NIGHT001.CSV/model_int8.tflite.json`. You can open
-these files in VS Code or any text editor.
-
-A file has two parts: `source`, what the result was computed from, and `result`, the result
-itself.
-
-```json
-{
-  "source": {
-    "night_size": 21094749,
-    "night_mtime_ns": 1790682911130659956,
-    "model_size": 127504,
-    "model_mtime_ns": 1790682568331006693,
-    "threshold": 0.23,
-    "smooth_window": 5
-  },
-  "result": {
-    "patient": "patient_1",
-    "night": "NIGHT001.CSV",
-    "model": "model_int8.tflite",
-    "sample_rate_hz": 100.0,
-    "minutes": 522,
-    "threshold": 0.23,
-    "smooth_window": 5,
-    "summary": {
-      "apnea_minutes": 378,
-      "apnea_fraction": 0.7241379310344828,
-      "apnea_minutes_per_hour": 43.44827586206897
-    },
-    "prob": [0.0039, 0.0, 0.0078, ...],
-    "prob_smoothed": [0.0039, 0.0039, 0.0039, ...],
-    "apnea": [false, false, false, ...]
-  }
-}
-```
-
-**`source`**
-
-| Field | Meaning |
-|---|---|
-| `night_size` | Size of the night file, in bytes |
-| `night_mtime_ns` | Modification time of the night file |
-| `model_size` | Size of the model file, in bytes |
-| `model_mtime_ns` | Modification time of the model file |
-| `threshold` | The model's threshold in `MODEL_THRESHOLDS` |
-| `smooth_window` | Minutes in the moving average (`SMOOTH_WINDOW`) |
-
-A saved result is shown only while these six values match the current files and settings.
-Otherwise the night shows "Not analysed" for that model.
-
-**`result`**
-
-| Field | Meaning |
-|---|---|
-| `patient` | The patient's folder name |
-| `night` | The night's file name |
-| `model` | The model's file name |
-| `sample_rate_hz` | Sampling rate of the night file (`RECORDING_FS`) |
-| `minutes` | Number of minutes analysed. A final incomplete minute is not counted |
-| `threshold` | Threshold used for the decision |
-| `smooth_window` | Minutes averaged in the smoothing |
-| `summary.apnea_minutes` | Minutes flagged as apnea: **Apnea minutes** in the interface |
-| `summary.apnea_fraction` | `apnea_minutes` divided by `minutes`, from 0 to 1 |
-| `summary.apnea_minutes_per_hour` | `apnea_minutes` divided by the hours analysed: **Minutes per hour** in the interface |
-| `prob` | One value per minute: the model's apnea probability, from 0 to 1, rounded to 4 decimals |
-| `prob_smoothed` | One value per minute: `prob` after the 5-minute average, the green line of the chart |
-| `apnea` | One value per minute: `true` when `prob_smoothed` is above the threshold, the red strip of the chart |
-
-The three lists each hold `minutes` values; the first value is the first minute of the recording.
-
-Results survive restarts and every `make` command, including `make clean`. The folder is not
-committed to git, because it holds results derived from patients' recordings.
+**[DATABASE.md](DATABASE.md)** explains the tables, how to look at the data (`make db-shell`), and
+how to back up, restore or empty the database.
 
 ---
 
@@ -375,18 +322,19 @@ After a change, run `make up`.
 |---|---|---|
 | `MODEL_PATH` | `/models/model_int8.tflite` | The model selected when the page opens |
 | `MODEL_THRESHOLDS` | `model_int8.tflite=0.23` | The threshold of each model file, comma-separated |
-| `PATIENTS_DIR` | `/patients` | The patients folder, inside the container |
-| `ANALYSES_DIR` | `/analyses` | The results folder, inside the container |
 | `RECORDING_FS` | `100` | Sampling rate of the night files, in Hz. Other rates are resampled to 100 Hz |
 | `SMOOTH_WINDOW` | `5` | Minutes in the moving average. |
+| `DB_USER` | | The database's user, created with the database |
+| `DB_PASS` | | That user's password. To change it later, see [DATABASE.md](DATABASE.md#12-changing-the-password) |
+| `DB_NAME` | | The database's name |
+| `DB_URL` | | How the service reaches the database: `postgresql://<user>:<password>@database:5432/<database>` |
 
 The paths are inside the container and must match the folders mounted in `docker-compose.yml`:
 
 | Project folder | Inside the container |
 |---|---|
-| `inference/data/models/` | `/models` |
-| `inference/data/patients/` | `/patients` |
-| `inference/data/analyses/` | `/analyses` |
+| `services/inference/data/models/` | `/models` |
+| `services/database/data/` | `/var/lib/postgresql`, in the `database` container |
 
 ---
 
@@ -398,13 +346,14 @@ Run from the project folder.
 |---|---|
 | `make up` | Start the service (builds the image the first time) |
 | `make stop` | Stop the service |
-| `make ps` | Show whether the service is running and healthy |
+| `make ps` | Show whether the two containers are running and healthy |
 | `make logs` | Show the service's log as it runs |
-| `make rebuild` | Rebuild and restart: needed after changing any code in `inference/` |
-| `make shell` | Open a terminal inside the running container |
-| `make down` | Remove the container. Recordings and results are kept |
-| `make build` | Build the image without starting it |
-| `make clean` | **Removes the container and every unused Docker image and cache on this computer**, including other projects'. Recordings and results are kept |
+| `make rebuild` | Rebuild and restart: needed after changing any code in `services/inference/` |
+| `make shell` | Open a terminal inside the service's container |
+| `make db-shell` | Open PostgreSQL's command line, to look at the tables |
+| `make down` | Remove the containers. Recordings and the database are kept |
+| `make build` | Build both images, the database's and the service's, without starting them |
+| `make clean` | **Removes the container and every unused Docker image and cache on this computer**, including other projects'. Recordings and the database are kept |
 
 ---
 
@@ -413,53 +362,46 @@ Run from the project folder.
 ### Code layout
 
 ```
-inference/
-├── app.py             # the web server (FastAPI): the API and the page
-├── pipeline.py        # preprocessing and the TFLite model wrapper
-├── patients.py        # reading the patients folder and the night files
-├── requirements.txt   # Python packages of the image
-├── Dockerfile         # builds the interface with Node, then serves it with Python
-├── web/               # the interface: React 19 + TypeScript, built with Vite
-└── data/
-    ├── models/        # .tflite models
-    ├── patients/      # recordings
-    └── analyses/      # saved results (written by the service, not committed)
+services/
+├── inference/
+│   ├── source/
+│   │   ├── app.py         # the web server (FastAPI): the API and the page
+│   │   ├── pipeline.py    # preprocessing and the TFLite model wrapper
+│   │   ├── patients.py    # the rules for patient names and night files, reading a night's samples
+│   │   ├── db.py          # the database tables (SQLModel) and the connection
+│   │   └── store.py       # patients, nights and analyses in the database
+│   ├── requirements.txt   # Python packages of the image
+│   ├── Dockerfile         # builds the interface with Node, then serves it with Python
+│   ├── web/               # the interface: React 19 + TypeScript, built with Vite
+│   └── data/
+│       └── models/        # .tflite models
+└── database/
+    ├── Dockerfile         # the database's image: PostgreSQL 18
+    ├── setup/setup.sh     # starts PostgreSQL with the settings from .env
+    └── data/              # the database's files (not committed)
 ```
 
-`pipeline.py` and `patients.py` do not depend on the web server, so they can be imported from any
-Python script.
+`pipeline.py`, `patients.py`, `db.py` and `store.py` do not depend on the web server, so they can be imported from any Python script.
 
 ### HTTP API
 
-The interface talks to the server through these routes. `model` is a file name from the models
-folder; without it, the model named by `MODEL_PATH` is used.
+The interface talks to the server through these routes. `model` is a file name from the models folder; without it, the model named by `MODEL_PATH` is used.
 
 | Method and path | Returns |
 |---|---|
 | `GET /api/models` | `{default, models: [{name, size_bytes, threshold}]}` |
-| `GET /api/patients` | `[{id, nights, latest_night}]` |
-| `GET /api/patients/{id}?model=` | The patient's nights, oldest first: `{patient, model, sample_rate_hz, nights: [{file, number, samples, duration_s, size_bytes, analysis}]}`. `analysis` is the saved summary for `model`, or `null` |
-| `GET /api/patients/{id}/nights/{file}/analysis?model=` | The saved result, without running the model. `404` if not analysed with `model` |
-| `POST /api/patients/{id}/nights/{file}/analysis?model=` | Runs the model, saves and returns the result |
-| `GET /health` | The default model, its threshold and the smoothing. Used by Docker's health check |
-| `POST /analyze?fs=100` | Analyses an uploaded file (`.npy`, or `.csv`/`.txt` with one value per line and no header) with the default model, without saving it |
+| `GET /api/patients` | `[{id, name, nights}]`. `id` is the patient's number, `name` its name |
+| `POST /api/patients` | Creates a patient. JSON body `{"name": "<name>"}`. Returns `201` and `{id, name}` |
+| `GET /api/patients/{id}?model=` | The patient and its nights, oldest first: `{id, name, model, sample_rate_hz, nights: [{file, number, samples, duration_s, size_bytes, analysis}]}`. `analysis` is the saved summary for `model`, or `null` |
+| `POST /api/patients/{id}/nights` | Stores one night in the database: the `.csv` file as the form field `file` and, optionally, `modified_ms`, the original file's modification time in milliseconds. Returns `201` and `{id, file}`; `409` if the patient has a night of that name, or if the same content is already stored |
+| `GET /api/patients/{id}/nights/{file}/analysis?model=` | The newest saved result, without running the model. `404` if not analysed with `model` |
+| `POST /api/patients/{id}/nights/{file}/analysis?model=` | Runs the model, saves the result as a new analysis and returns it |
+| `GET /health` | The default model, its threshold and the smoothing, after checking the database. Used by Docker's health check |
+| `POST /analyze?fs=100` | Analyses a file sent as the form field `file`, with the default model, without saving it. A name ending in `.npy` is read as a one-dimensional NumPy array; any other file as text, one value per line in mV, no header. `fs` is the file's sampling rate (default 100) |
 
 
-Errors return `{"detail": "<message>"}` with `404` (unknown patient, night or model), `409` (model
-without a threshold, or that cannot be loaded) or `422` (the night could not be analysed).
-
-### Working on the interface
-
-The interface is in `inference/web/`: React 19, TypeScript, React Router and TanStack Query, built
-with Vite. Node is only needed to work on it, not to run the service.
-
-For live reload, keep the service running (`make up`) and start Vite:
-
-```bash
-cd inference/web
-npm install       # the first time
-npm run dev       # http://localhost:5173, API calls are forwarded to the service on port 8000
-```
-
-`npm run build` checks the types and builds into `inference/web/dist/`. To ship a change, run
-`make rebuild`.
+Errors return `{"detail": "<message>"}` with `400` (a patient name, file or upload that is not
+accepted), `404` (unknown patient, night or model), `409` (a night name already used by the patient, a
+night already stored, a night file changed since it was registered, or a model without a threshold
+or that cannot be loaded) or `422` (the night could not be
+analysed).
