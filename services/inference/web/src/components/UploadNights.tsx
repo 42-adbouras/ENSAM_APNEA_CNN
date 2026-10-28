@@ -14,7 +14,7 @@ export interface UploadReport {
   failed: { file: string; reason: string }[];
 }
 
-export function useNightUpload(patient: number) {
+export function useNightUpload(patient: string) {
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<UploadProgress | null>(null);
   const [report, setReport] = useState<UploadReport | null>(null);

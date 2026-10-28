@@ -12,7 +12,7 @@ const RATE_SCALE = 60;   // minutes per hour at a full bar
 
 export function PatientPage() {
   const { patient = "" } = useParams();
-  return <PatientView key={patient} patient={Number(patient)} />;
+  return <PatientView key={patient} patient={patient} />;
 }
 // key={patient} gives each patient a fresh view, which stops an "Analyse all" run of the previous one.
 
@@ -22,7 +22,7 @@ interface Running {
   file: string;
 }
 
-function PatientView({ patient }: { patient: number }) {
+function PatientView({ patient }: { patient: string }) {
   const { chosen } = useModel();
   const queryClient = useQueryClient();
   const query = useQuery({
@@ -123,7 +123,7 @@ function PatientView({ patient }: { patient: number }) {
 }
 
 function NightRow({ patient, night, busy, failure }: {
-  patient: number;
+  patient: string;
   night: Night;
   busy: boolean;
   failure?: string;

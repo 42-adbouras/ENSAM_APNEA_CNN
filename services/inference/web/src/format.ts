@@ -16,8 +16,8 @@ export function formatSize(bytes: number): string {
   return `${(bytes / 1e6).toFixed(1)} MB`;
 }
 
-export const patientPath = (patient: number) => `/patient/${patient}`;
-export const nightPath = (patient: number, file: string) => `${patientPath(patient)}/night/${encodeURIComponent(file)}`;
+export const patientPath = (patient: string) => `/patient/${patient}`;
+export const nightPath = (patient: string, file: string) => `${patientPath(patient)}/night/${encodeURIComponent(file)}`;
 
 export interface Period {
   start: number;

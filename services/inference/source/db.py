@@ -9,6 +9,7 @@ No web code here, and no `from __future__ import annotations`: SQLModel reads th
 below at run time to build the relationships between tables.
 """
 import os
+import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import BigInteger, DateTime, LargeBinary
@@ -31,7 +32,7 @@ def _timestamp(**kwargs):
 class Patient(SQLModel, table=True):
     __tablename__ = "patients"
 
-    id: int | None = Field(default=None, primary_key=True)
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)   # random, set when created
     code: str = Field(max_length=64)                           # the name; several patients may share one
     created_at: datetime = _timestamp(default_factory=now)
 
@@ -39,11 +40,11 @@ class Patient(SQLModel, table=True):
 
 
 class Recording(SQLModel, table=True):
-    """One night: the details of a .csv file uploaded or imported for a patient."""
+    """One night: the details of a .csv file uploaded for a patient."""
     __tablename__ = "recordings"
 
     id: int | None = Field(default=None, primary_key=True)
-    patient_id: int = Field(foreign_key="patients.id", index=True)
+    patient_id: uuid.UUID = Field(foreign_key="patients.id", index=True)
     file_name: str                                              # the original file's name
     sha256: str = Field(index=True, max_length=64)               # checksum of the content
     size_bytes: int = Field(sa_type=BigInteger)
@@ -111,13 +112,13 @@ class AnalysisMinute(SQLModel, table=True):
 
 
 class Event(SQLModel, table=True):
-    """What happened and when: patient created, night uploaded or imported, night analysed."""
+    """What happened and when: patient created, night uploaded, night analysed."""
     __tablename__ = "events"
 
     id: int | None = Field(default=None, primary_key=True)
     at: datetime = _timestamp(default_factory=now)
     action: str
-    patient_id: int | None = Field(default=None, foreign_key="patients.id")
+    patient_id: uuid.UUID | None = Field(default=None, foreign_key="patients.id")
     recording_id: int | None = Field(default=None, foreign_key="recordings.id")
     analysis_id: int | None = Field(default=None, foreign_key="analyses.id")
     detail: str | None = None

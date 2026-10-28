@@ -7,6 +7,7 @@ from or written to the file system.
 """
 import hashlib
 import threading
+import uuid
 from datetime import datetime, timezone
 
 from sqlmodel import Session, col, select
@@ -32,10 +33,10 @@ def _log(session: Session, action: str, **links) -> None:
 
 def patients(session: Session) -> list[Patient]:
     """Every patient, in alphabetical order of name, then of creation."""
-    return sorted(session.exec(select(Patient)), key=lambda p: (p.code.lower(), p.id))
+    return sorted(session.exec(select(Patient)), key=lambda p: (p.code.lower(), p.created_at))
 
 
-def patient(session: Session, patient_id: int) -> Patient | None:
+def patient(session: Session, patient_id: uuid.UUID) -> Patient | None:
     return session.get(Patient, patient_id)
 
 

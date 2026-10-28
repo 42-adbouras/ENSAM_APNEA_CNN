@@ -40,6 +40,8 @@ services/inference/web/dist/
 !docs/
 !docs/screenshots/
 !docs/screenshots/*.png
+!docs/diagrams/
+!docs/diagrams/*.png
 !.env.example
 
 !.gitignore

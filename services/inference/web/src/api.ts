@@ -10,7 +10,7 @@ export interface Models {
 }
 
 export interface PatientSummary {
-  id: number;
+  id: string;
   name: string;
   nights: number;
 }
@@ -35,7 +35,7 @@ export interface Night {
 }
 
 export interface PatientNights {
-  id: number;
+  id: string;
   name: string;
   model: string;
   sample_rate_hz: number;
@@ -77,16 +77,16 @@ async function getJSON<T>(url: string, init?: RequestInit): Promise<T> {
 
 const enc = encodeURIComponent;
 const modelQuery = (model: string | null) => (model ? `?model=${enc(model)}` : "");
-const analysisUrl = (patient: number, file: string, model: string) =>
+const analysisUrl = (patient: string, file: string, model: string) =>
   `/api/patients/${patient}/nights/${enc(file)}/analysis${modelQuery(model)}`;
 
 export const api = {
   patients: () => getJSON<PatientSummary[]>("/api/patients"),
   models: () => getJSON<Models>("/api/models"),
-  patient: (patient: number, model: string | null) =>
+  patient: (patient: string, model: string | null) =>
     getJSON<PatientNights>(`/api/patients/${patient}${modelQuery(model)}`),
 
-  async keptAnalysis(patient: number, file: string, model: string): Promise<Analysis | null> {
+  async keptAnalysis(patient: string, file: string, model: string): Promise<Analysis | null> {
     try {
       return await getJSON<Analysis>(analysisUrl(patient, file, model));
     } catch (error) {
@@ -96,21 +96,21 @@ export const api = {
   },
   // The stored result for this model, or null when the night has not been analysed with it.
 
-  analyse: (patient: number, file: string, model: string) =>
+  analyse: (patient: string, file: string, model: string) =>
     getJSON<Analysis>(analysisUrl(patient, file, model), { method: "POST" }),
 
   createPatient: (name: string) =>
-    getJSON<{ id: number; name: string }>("/api/patients", {
+    getJSON<{ id: string; name: string }>("/api/patients", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
     }),
 
-  uploadNight(patient: number, file: File) {
+  uploadNight(patient: string, file: File) {
     const form = new FormData();
     form.append("file", file);
     form.append("modified_ms", String(file.lastModified));
-    return getJSON<{ id: number; file: string }>(`/api/patients/${patient}/nights`, {
+    return getJSON<{ id: string; file: string }>(`/api/patients/${patient}/nights`, {
       method: "POST",
       body: form,
     });

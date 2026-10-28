@@ -30,7 +30,7 @@ export function PatientSwitcher() {
   }, []);
   // "/" anywhere outside a form field puts the cursor in this box.
 
-  const go = (id: number) => {
+  const go = (id: string) => {
     setText("");
     setOpen(false);
     input.current?.blur();

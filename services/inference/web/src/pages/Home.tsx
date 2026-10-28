@@ -23,7 +23,7 @@ export function Home() {
   });
   // The same per-patient query as the patient page, so opening a patient from here is instant.
 
-  const lastSeen = useRef(new Map<number, PatientNights>());
+  const lastSeen = useRef(new Map<string, PatientNights>());
   const rows = patients.map((patient, i) => {
     const fresh = details[i]?.data;
     if (fresh) lastSeen.current.set(patient.id, fresh);

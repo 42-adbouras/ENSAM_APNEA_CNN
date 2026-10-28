@@ -93,9 +93,10 @@ ENSAM_APNEA_CNN/
 ├── Makefile                 # make up, make rebuild, make logs, make shell...
 ├── .env.example             # service settings; copy to .env
 ├── INFERENCE.md             # inference service guide
-├── DOCKER.md                # how the service's Docker image and container are set up
 ├── DATABASE.md              # the database: tables, looking at the data, backups
-└── docs/screenshots/        # interface screenshots used by INFERENCE.md
+└── docs/
+    ├── screenshots/         # screenshots used by INFERENCE.md and DATABASE.md
+    └── diagrams/            # DATABASE.md's diagrams
 ```
 
 ---

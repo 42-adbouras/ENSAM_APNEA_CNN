@@ -4,6 +4,7 @@ import io
 import os
 import threading
 from pathlib import Path
+from uuid import UUID
 
 import numpy as np
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
@@ -100,11 +101,15 @@ def page(patient: str | None = None, night: str | None = None) -> FileResponse:
     # would ask the server for a path it does not know.
 
 
-def _patient(session: Session, patient_id: int) -> Patient:
-    row = store.patient(session, patient_id)
+def _patient(session: Session, patient_id: str) -> Patient:
+    try:
+        row = store.patient(session, UUID(patient_id))
+    except ValueError:
+        row = None
     if row is None:
         raise HTTPException(404, f"no patient with id {patient_id}")
     return row
+    # UUID() raises ValueError for text that is not a UUID; such an id is reported as unknown.
 
 
 def _night(session: Session, patient: Patient, file: str) -> Recording:
@@ -155,7 +160,7 @@ def new_patient(body: NewPatient, session: Session = SESSION) -> dict:
 
 
 @app.get("/api/patients/{patient}")
-def patient_nights(patient: int, model: str = MODEL_QUERY, session: Session = SESSION) -> dict:
+def patient_nights(patient: str, model: str = MODEL_QUERY, session: Session = SESSION) -> dict:
     row = _patient(session, patient)
     nights = store.nights(session, row)
     latest = _latest(session, nights, model)
@@ -174,7 +179,7 @@ def patient_nights(patient: int, model: str = MODEL_QUERY, session: Session = SE
 
 
 @app.post("/api/patients/{patient}/nights", status_code=201)
-def upload_night(patient: int, file: UploadFile = File(...),
+def upload_night(patient: str, file: UploadFile = File(...),
                  modified_ms: int | None = Form(None, ge=0), session: Session = SESSION) -> dict:
     row = _patient(session, patient)
     name = Path(file.filename or "").name
@@ -192,7 +197,7 @@ def upload_night(patient: int, file: UploadFile = File(...),
 
 
 @app.get("/api/patients/{patient}/nights/{night}/analysis")
-def kept_analysis(patient: int, night: str, model: str = MODEL_QUERY,
+def kept_analysis(patient: str, night: str, model: str = MODEL_QUERY,
                   session: Session = SESSION) -> dict:
     row = _patient(session, patient)
     recording = _night(session, row, night)
@@ -204,7 +209,7 @@ def kept_analysis(patient: int, night: str, model: str = MODEL_QUERY,
 
 
 @app.post("/api/patients/{patient}/nights/{night}/analysis")
-def analyse_night(patient: int, night: str, model: str = MODEL_QUERY,
+def analyse_night(patient: str, night: str, model: str = MODEL_QUERY,
                   session: Session = SESSION) -> dict:
     row = _patient(session, patient)
     recording = _night(session, row, night)

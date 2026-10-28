@@ -10,15 +10,15 @@ import { useModel } from "../model";
 
 export function NightPage() {
   const { patient = "", night = "" } = useParams();
-  return <NightView key={`${patient}/${night}`} patient={Number(patient)} file={night} />;
+  return <NightView key={`${patient}/${night}`} patient={patient} file={night} />;
 }
 
-function PagerLink({ patient, night, children }: { patient: number; night?: Night; children: ReactNode }) {
+function PagerLink({ patient, night, children }: { patient: string; night?: Night; children: ReactNode }) {
   if (!night) return <span className="btn btn-ghost" aria-disabled="true">{children}</span>;
   return <Link className="btn btn-ghost" to={nightPath(patient, night.file)}>{children}</Link>;
 }
 
-function NightView({ patient, file }: { patient: number; file: string }) {
+function NightView({ patient, file }: { patient: string; file: string }) {
   const { chosen } = useModel();
   const queryClient = useQueryClient();
   const navigate = useNavigate();

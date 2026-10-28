@@ -184,7 +184,7 @@ printed only if it is open.
 ### 2.6 Choosing a model
 
 The **Model** menu lists every model file in `services/inference/data/models/`, with its threshold next to
-it. A model without a threshold is shown greyed out with "(no threshold)" and cannot be selected
+it. A model without a threshold is shown greyed out with "(no threshold)" and cannot be selected.
 
 - The choice applies to every page, until you reload the page.
 - Results are saved **separately for each model**. Switching models shows that model's own
@@ -199,8 +199,9 @@ details and its results. They are added from the interface.
 
 **Create a patient.** On the patients page, click **Create patient**, type a name and click
 **Create**. The name can use letters, digits, spaces, `_` and `-`, and starts with a letter or digit.
-Several patients may have the same name: each one is told apart by a number, shown in its page's
-address (`/patient/7`). The new patient's page then opens.
+Several patients may have the same name: each one is told apart by its identifier, a UUID created
+with the patient and shown in its page's address (`/patient/3f2b8c1e-5d4a-4e7b-9c2d-8a1f6e0b7d35`). The new
+patient's page then opens.
 
 ![Creating a patient](docs/screenshots/new-patient.png)
 
@@ -213,7 +214,8 @@ were not and why:
 
 A file is not uploaded when:
 
-- its name does not end in `.csv` (or `.CSV`);
+- its name does not end in `.csv` (or `.CSV`), does not start with a letter or digit, or holds
+  characters other than letters, digits, spaces, `.`, `_` and `-`;
 - the patient already has a night with the same name. An upload never replaces a recording;
 - the same night is already stored, for this patient or another one;
 - it is not one number per line (see the file format below);
@@ -254,7 +256,7 @@ Both come from the training notebook, [training/model.ipynb](training/model.ipyn
 **Every model needs its own threshold.** The model gives a probability for each minute, and the
 threshold turns it into a yes or no. Each threshold was chosen on the validation recordings. The int8 and float32 files of the same network need different thresholds,
 because quantisation shifts the probabilities slightly. The notebook's Test set cell prints the
-threshold of `model.keras` (0.20) and of `model_int8.tflite` (0.23)
+threshold of `model.keras` (0.20) and of `model_int8.tflite` (0.23).
 
 Thresholds are set in `.env`:
 
@@ -301,8 +303,9 @@ recordings it reproduces the training data to within 1.5e-6.
 Everything the service knows is kept in a **PostgreSQL database**, which Docker runs next to the
 service: the patients, the nights with their recordings, every analysis with its minute-by-minute
 values, the versions of the model files and a log of actions. Only the model files stay on disk.
-The database's files are in `services/database/data/`; they survive every `make` command, including
-`make clean`, and are not committed to git.
+The database's files are in `services/database/data/`, a folder of the project, not a Docker volume:
+they survive every `make` command, including `make clean`, and the deletion of Docker's containers
+and volumes. They are not committed to git.
 
 - Analysing a night again adds a new analysis; the interface shows the newest one.
 - An analysis counts for a night when it was made on the same content, with the same version of the
@@ -325,7 +328,7 @@ After a change, run `make up`.
 | `RECORDING_FS` | `100` | Sampling rate of the night files, in Hz. Other rates are resampled to 100 Hz |
 | `SMOOTH_WINDOW` | `5` | Minutes in the moving average. |
 | `DB_USER` | | The database's user, created with the database |
-| `DB_PASS` | | That user's password. To change it later, see [DATABASE.md](DATABASE.md#12-changing-the-password) |
+| `DB_PASS` | | That user's password. Choose it before the first start: the database keeps the password it was created with, so changing it here later leaves the service unable to connect |
 | `DB_NAME` | | The database's name |
 | `DB_URL` | | How the service reaches the database: `postgresql://<user>:<password>@database:5432/<database>` |
 
@@ -353,7 +356,7 @@ Run from the project folder.
 | `make db-shell` | Open PostgreSQL's command line, to look at the tables |
 | `make down` | Remove the containers. Recordings and the database are kept |
 | `make build` | Build both images, the database's and the service's, without starting them |
-| `make clean` | **Removes the container and every unused Docker image and cache on this computer**, including other projects'. Recordings and the database are kept |
+| `make clean` | **Removes the containers and every unused Docker image and cache on this computer**, including other projects'. Recordings and the database are kept |
 
 ---
 
@@ -390,7 +393,7 @@ The interface talks to the server through these routes. `model` is a file name f
 | Method and path | Returns |
 |---|---|
 | `GET /api/models` | `{default, models: [{name, size_bytes, threshold}]}` |
-| `GET /api/patients` | `[{id, name, nights}]`. `id` is the patient's number, `name` its name |
+| `GET /api/patients` | `[{id, name, nights}]`. `id` is the patient's identifier, a UUID; `name` its name |
 | `POST /api/patients` | Creates a patient. JSON body `{"name": "<name>"}`. Returns `201` and `{id, name}` |
 | `GET /api/patients/{id}?model=` | The patient and its nights, oldest first: `{id, name, model, sample_rate_hz, nights: [{file, number, samples, duration_s, size_bytes, analysis}]}`. `analysis` is the saved summary for `model`, or `null` |
 | `POST /api/patients/{id}/nights` | Stores one night in the database: the `.csv` file as the form field `file` and, optionally, `modified_ms`, the original file's modification time in milliseconds. Returns `201` and `{id, file}`; `409` if the patient has a night of that name, or if the same content is already stored |
@@ -402,6 +405,6 @@ The interface talks to the server through these routes. `model` is a file name f
 
 Errors return `{"detail": "<message>"}` with `400` (a patient name, file or upload that is not
 accepted), `404` (unknown patient, night or model), `409` (a night name already used by the patient, a
-night already stored, a night file changed since it was registered, or a model without a threshold
-or that cannot be loaded) or `422` (the night could not be
+night already stored, a night whose stored content no longer matches its checksum, or a model
+without a threshold or that cannot be loaded) or `422` (the night could not be
 analysed).
