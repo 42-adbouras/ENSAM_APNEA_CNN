@@ -1,8 +1,8 @@
-# Training notebook (src/model.ipynb), Python 3.11.
+# Training notebook (training/model.ipynb), Python 3.11.
 tensorflow==2.20.0         # builds and trains the model, converts it to TFLite
-wfdb==4.3.1                # downloads Apnea-ECG, reads its ECG signals and expert labels
+wfdb==4.3.1                # reads the PhysioNet recordings and their expert annotations
 numpy==2.4.6               # arrays of ECG windows, labels and predictions
-scipy==1.17.1              # band-pass and 50 Hz notch filters
+scipy==1.17.1              # resampling, band-pass and 50 Hz notch filters
 scikit-learn==1.9.0        # AUC, ROC curve and confusion matrix
-matplotlib==3.11.1         # training curves figure
+matplotlib==3.11.1         # figures: training curves, inference.ipynb
 ipykernel==7.3.0           # lets Jupyter / VS Code run the notebook in .venv

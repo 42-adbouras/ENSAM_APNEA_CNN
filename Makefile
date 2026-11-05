@@ -4,9 +4,11 @@ build:
 	$(COMPOSE) build
 
 up:
+	@mkdir -p data/apnea-ecg results
 	$(COMPOSE) up -d
 
 rebuild:
+	@mkdir -p data/apnea-ecg results
 	$(COMPOSE) up -d --build
 
 logs:
@@ -21,6 +23,12 @@ shell:
 db-shell:
 	$(COMPOSE) exec database sh -c 'psql -U "$$DB_USER" -d "$$DB_NAME"'
 
+demo: up
+	@$(COMPOSE) exec -T --user "$$(id -u):$$(id -g)" inference python -u /demo/apnea_ecg.py
+
+eval: up
+	@$(COMPOSE) exec -T --user "$$(id -u):$$(id -g)" inference python -u /demo/evaluate.py
+
 stop:
 	$(COMPOSE) stop
 
@@ -31,4 +39,7 @@ clean:
 	$(COMPOSE) down -v
 	docker system prune -af
 
-.PHONY: build up rebuild logs ps shell db-shell stop down clean
+fclean: clean
+	rm -rf services/database/data/*
+
+.PHONY: build up rebuild logs ps shell db-shell demo eval stop down clean fclean

@@ -2,6 +2,7 @@
 
 !training/
 !training/model.ipynb
+!training/inference.ipynb
 !/requirements.txt
 !results/
 
@@ -24,6 +25,9 @@
 !services/inference/source/store.py
 !services/inference/source/pipeline.py
 !services/inference/requirements.txt
+!services/inference/demo/
+!services/inference/demo/apnea_ecg.py
+!services/inference/demo/evaluate.py
 !services/inference/web/
 !services/inference/web/**
 !services/inference/.dockerignore

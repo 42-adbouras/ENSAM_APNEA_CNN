@@ -6,3 +6,4 @@ uvicorn==0.53.0            # the web server that runs the FastAPI app
 python-multipart==0.0.32   # reads file uploads, for POST /analyze
 sqlmodel==0.0.48           # the database tables as Python classes, built on SQLAlchemy
 psycopg[binary]==3.3.6     # PostgreSQL driver used by SQLAlchemy
+matplotlib==3.11.1         # make eval's figure, results/evaluate.png

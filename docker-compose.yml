@@ -26,3 +26,6 @@ services:
         condition: service_healthy
     volumes:
       - ./services/inference/data/models:/models
+      - ./services/inference/demo:/demo:ro
+      - ./data/apnea-ecg:/apnea-ecg
+      - ./results:/results
