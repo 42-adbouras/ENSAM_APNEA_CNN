@@ -25,23 +25,19 @@
 - **Docker Desktop** (or Docker Engine with Compose on Linux), installed and running.
 - **GNU Make**.
 
-Nothing else: Python, Node and the models are all inside the Docker image.
-
 ### First start
 
 From the project folder, create the settings file, `.env` (only the first time):
 
 ```bash
-MODEL_PATH=/models/model_int8.tflite
-MODEL_THRESHOLDS=model_int8.tflite=0.23,model_float32.tflite=0.20
+MODEL_PATH=/models/model_cinc2018_float32.tflite
+MODEL_THRESHOLDS=model_cinc2018_int8.tflite=0.51,model_cinc2018_float32.tflite=0.41
 RECORDING_FS=100
-DB_USER=apnea
-DB_PASS=change-me
-DB_NAME=apnea
-DB_URL=postgresql://apnea:change-me@database:5432/apnea
+DB_USER=db-username
+DB_PASS=db-password
+DB_NAME=db-name
+DB_URL=postgresql://db-username:db-password@database:5432/db-name
 ```
-
-Replace `change-me` with a password of your choice, in both lines.
 
 Each line is one setting, explained in [Settings](#7-settings). Then start the service:
 
@@ -53,11 +49,9 @@ The first `make up` takes a few minutes, because it downloads and builds everyth
 
 Then open **http://localhost:8000** in your browser.
 
-The patient list starts empty: add patients and their nights as described in
-[Adding recordings](#3-adding-recordings).
+The patient list starts empty: add patients and their nights as described in [Adding recordings](#3-adding-recordings).
 
-To check that it is running, `make ps` should show both containers, `apnea_database` and
-`apnea_inference`, as `(healthy)`.
+To check that it is running, `make ps` should show both containers, `apnea_database` and `apnea_inference`, as `(healthy)`.
 
 ### Stopping it
 
@@ -65,8 +59,7 @@ To check that it is running, `make ps` should show both containers, `apnea_datab
 make stop    # stop the service; make up starts it again
 ```
 
-Stopping does not lose anything: patients, recordings and results are in the database, which keeps
-its data in `services/database/data/`.
+Stopping does not lose anything: patients, recordings and results are in the database, which keeps its data in `services/database/data/`.
 
 ---
 
@@ -96,14 +89,12 @@ At the top: the number of nights, the total recorded time and how many nights ar
 
 Below, one row per night, **newest at the top**. "Night 1" is always the oldest recording. Each row shows the file name, the night's length and its file size, then:
 
-- **a result**, such as `43.6 min/h`, with a red bar (the bar is full at 60 minutes per hour), or
+- **a result**, such as `51.0 min/h`, with a red bar (the bar is full at 60 minutes per hour), or
 - **Not analysed**, when the selected model has not been run on that night yet.
 
-Click a row to open the night. **Upload nights** adds recordings to this patient; see
-[Adding recordings](#3-adding-recordings).
+Click a row to open the night. **Upload nights** adds recordings to this patient; see [Adding recordings](#3-adding-recordings).
 
-**Analyse all nights** runs the model on every night that is not analysed yet, one after the other,
-newest first. The button shows the progress and the row being analysed shows a spinner:
+**Analyse all nights** runs the model on every night that is not analysed yet, one after the other, newest first. The button shows the progress and the row being analysed shows a spinner:
 
 ![Analyse all nights in progress](docs/screenshots/analysing.png)
 
@@ -124,12 +115,9 @@ When you first open a night that has not been analysed, the page looks like this
 1. Check the **Model** menu (the threshold of the selected model is shown next to it).
 2. Click **Analyse**. The result appears after one to two seconds.
 
-The result is saved, so the next time anyone opens this night with this model it appears
-immediately, even after a restart. Clicking **Analyse** again runs the model again: the new result
-is shown, and the earlier ones stay in the database.
+The result is saved, so the next time anyone opens this night with this model it appears immediately, even after a restart. Clicking **Analyse** again runs the model again: the new result is shown, and the earlier ones stay in the database.
 
-To move between nights, use the buttons at the top right, which name the previous and next night.
-The links at the top (**Patients / patient_3 / Night 4**) take you back up.
+To move between nights, use the buttons at the top right, which name the previous and next night. The links at the top (**Patients / patient_3 / Night 4**) take you back up.
 
 ### 2.5 Reading the result
 
@@ -153,8 +141,7 @@ The links at the top (**Patients / patient_3 / Night 4**) take you back up.
 - The **dashed line** is the threshold: a minute is flagged when the green line is above it.
 - The bottom axis is **hours since the recording started**.
 
-Move the mouse over the chart to read any minute: its probability, whether it is flagged, and when
-it is.
+Move the mouse over the chart to read any minute: its probability, whether it is flagged, and when it is.
 
 **The flagged periods**
 
@@ -162,67 +149,52 @@ Click **List the … flagged periods** under the chart to see each period's star
 
 <img src="docs/screenshots/periods.png" width="300" alt="The list of flagged periods">
 
-Times are **hours:minutes since the recording started**, not the time of day: `2:10` means two hours
-and ten minutes into the night. The recorder has no clock, so the time of day is not known.
+Times are **hours:minutes since the recording started**, not the time of day: `2:10` means two hours and ten minutes into the night. The recorder has no clock, so the time of day is not known.
 
 **Download CSV** saves the night minute by minute, one row per minute:
 
 ```
 minute,start,probability,probability_smoothed,apnea
-1,0:00,0.0039,0.0039,0
-2,0:01,0,0.0039,0
-3,0:02,0.0078,0.0039,0
+1,0:00,0.0119,0.0122,0
+2,0:01,0.0087,0.0145,0
+3,0:02,0.0167,0.0142,0
 ...
 ```
 
-The file is named after the patient, the night and the model, for example
-`patient_1_NIGHT001_model_int8.csv`.
+The file is named after the patient, the night and the model, for example `patient_1_NIGHT001_model_cinc2018_float32.csv`.
 
-**Print** prints the page without the header, menus and buttons. The list of flagged periods is
-printed only if it is open.
+**Print** prints the page without the header, menus and buttons. The list of flagged periods is printed only if it is open.
 
 ### 2.6 Choosing a model
 
-The **Model** menu lists every model file in `services/inference/data/models/`, with its threshold next to
-it. A model without a threshold is shown greyed out with "(no threshold)" and cannot be selected.
+The **Model** menu lists every model file in `services/inference/data/models/`, with its threshold next to it. A model without a threshold is shown greyed out with "(no threshold)" and cannot be selected.
 
 - The choice applies to every page, until you reload the page.
-- Results are saved **separately for each model**. Switching models shows that model's own
-  results, or "Not analysed with this model yet".
+- Results are saved **separately for each model**. Switching models shows that model's own results, or "Not analysed with this model yet".
 
 ---
 
 ## 3. Adding recordings
 
-Every patient and every night is stored in the database: the night's file, byte for byte, with its
-details and its results. They are added from the interface.
+Every patient and every night is stored in the database: the night's file, byte for byte, with its details and its results. They are added from the interface.
 
-**Create a patient.** On the patients page, click **Create patient**, type a name and click
-**Create**. The name can use letters, digits, spaces, `_` and `-`, and starts with a letter or digit.
-Several patients may have the same name: each one is told apart by its identifier, a UUID created
-with the patient and shown in its page's address (`/patient/3f2b8c1e-5d4a-4e7b-9c2d-8a1f6e0b7d35`). The new
-patient's page then opens.
+**Create a patient.** On the patients page, click **Create patient**, type a name and click **Create**. The name can use letters, digits, spaces, `_` and `-`, and starts with a letter or digit. Several patients may have the same name: each one is told apart by its identifier, a UUID created with the patient and shown in its page's address (`/patient/3f2b8c1e-5d4a-4e7b-9c2d-8a1f6e0b7d35`). The new patient's page then opens.
 
 ![Creating a patient](docs/screenshots/new-patient.png)
 
-**Upload nights.** On a patient's page, click **Upload nights** and choose one or more `.csv`
-files, for example from the SD card. They are sent one after the other; each night appears in the
-list as soon as it arrives. A short report then says how many nights were uploaded, and which files
-were not and why:
+**Upload nights.** On a patient's page, click **Upload nights** and choose one or more `.csv` files, for example from the SD card. They are sent one after the other; each night appears in the list as soon as it arrives. A short report then says how many nights were uploaded, and which files were not and why:
 
 ![Nights uploaded](docs/screenshots/upload.png)
 
 A file is not uploaded when:
 
-- its name does not end in `.csv` (or `.CSV`), does not start with a letter or digit, or holds
-  characters other than letters, digits, spaces, `.`, `_` and `-`;
+- its name does not end in `.csv` (or `.CSV`), does not start with a letter or digit, or holds characters other than letters, digits, spaces, `.`, `_` and `-`;
 - the patient already has a night with the same name. An upload never replaces a recording;
 - the same night is already stored, for this patient or another one;
 - it is not one number per line (see the file format below);
 - it holds less than one minute of signal.
 
-Each uploaded night keeps the modification time of the original file, so the nights are numbered
-in the order they were recorded, whatever the order in which they were uploaded.
+Each uploaded night keeps the modification time of the original file, so the nights are numbered in the order they were recorded, whatever the order in which they were uploaded.
 
 **File format.**
 
@@ -247,79 +219,55 @@ The service runs the `.tflite` files in `services/inference/data/models/`:
 
 | File | Size | Threshold | Notes |
 |---|---|---|---|
-| `model_int8.tflite` | 124.5 KB | 0.23 | Full int8: the model for the ESP32-S3. Selected by default |
-| `model_float32.tflite` | 295.8 KB | 0.20 | The same network unquantised; same outputs as `model.keras` |
+| `model_cinc2018_float32.tflite` | 306.1 KB | 0.41 | Unquantised, float32 throughout; same outputs as its `model.keras`. Selected by default |
+| `model_cinc2018_int8.tflite` | 134.8 KB | 0.51 | The same network in full int8 (weights, activations, input and output), the format for the ESP32-S3 |
 
-Both come from the training notebook, [training/model.ipynb](training/model.ipynb), which writes them to
-`results/`.
+The training notebook, [training/model.ipynb](training/model.ipynb), writes these files to `results/` as `model_float32.tflite` and `model_int8.tflite`; they were renamed when copied here. Both come from one run in Google Colab, trained on the 796 training people of the CinC Challenge 2018 database (PhysioNet). On the 70 nights of the Apnea-ECG database, which they never saw, they label 91.3 % (float32) and 90.3 % (int8) of the minutes correctly, and 92.0 % and 90.9 % of the 35 test recordings that `make demo` loads (measured by [training/inference.ipynb](training/inference.ipynb); `make eval` measures the same 35 nights through the service). `MODEL_PATH` in `.env` decides which one the page selects first.
 
-**Every model needs its own threshold.** The model gives a probability for each minute, and the
-threshold turns it into a yes or no. Each threshold was chosen on the validation recordings. The int8 and float32 files of the same network need different thresholds,
-because quantisation shifts the probabilities slightly. The notebook's Test set cell prints the
-threshold of `model.keras` (0.20) and of `model_int8.tflite` (0.23).
-
-Thresholds are set in `.env`:
+**Every model needs its own threshold.** The model gives a probability for each minute, and the threshold turns it into a yes or no. The int8 and float32 files of the same network can need different thresholds, because quantisation shifts the probabilities. The notebook's Test set cell chooses a threshold on the validation people and prints it for `model.keras`, `model_float32.tflite` and `model_int8.tflite`: 0.41 for float32 and 0.51 for int8 in the run these files come from. The service uses the thresholds set in `.env`, at present those two:
 
 ```
-MODEL_THRESHOLDS=model_int8.tflite=0.23,model_float32.tflite=0.20
+MODEL_THRESHOLDS=model_cinc2018_int8.tflite=0.51,model_cinc2018_float32.tflite=0.41
 ```
 
 **To add a model:**
 
 1. Copy the `.tflite` file into `services/inference/data/models/`.
-2. Add `<file name>=<threshold>` to `MODEL_THRESHOLDS` in `.env`, separated from the others by a
-   comma.
+2. Add `<file name>=<threshold>` to `MODEL_THRESHOLDS` in `.env`, separated from the others by a comma.
 3. Run `make up`.
 
-The model must take one 60-second window, input shape `(1, 6000, 1)`, and be either full int8
-(int8 input and output) or float32.
+The model must take one 60-second window, input shape `(1, 6000, 1)`, and be either full int8 (int8 input and output) or float32.
 
 ---
 
 ## 5. How a night is analysed
 
-The service prepares the signal exactly as the training notebook did. On Apnea-ECG's test
-recordings it reproduces the training data to within 1.5e-6.
+The service prepares the signal with the same steps as the training notebook's Windows cell.
 
-1. **Filtering.** Frequencies below 0.5 Hz (breathing and movement drift) and above 40 Hz (muscle
-   and electrical noise) are removed, as is 50 Hz mains interference. The filters run forwards and
-   backwards, so the heartbeats do not move in time.
-2. **Clean-up.** Missing samples are replaced by the night's median, and values are limited to
-   ±5 mV.
-3. **Minutes.** The night is cut into 60-second windows from the start. A final incomplete minute
-   is dropped. Each window is rescaled on its own (mean 0, standard deviation 1), so the model sees
-   the shape of the signal, not its amplitude.
-4. **Model.** One probability of apnea per minute.
-5. **Smoothing.** Each minute's probability is averaged with the two minutes before and the two
-   after (5 minutes in all). At the start and end of the night, the first or last value stands in
-   for the missing minutes.
-6. **Decision.** A minute is flagged as apnea when its averaged probability is above the model's
-   threshold.
+1. **Resampling.** A night recorded at another rate (`RECORDING_FS`) is resampled to 100 Hz, the model's rate.
+2. **Filtering.** Frequencies below 0.5 Hz (breathing and movement drift) and above 40 Hz (muscle and electrical noise) are removed, as is 50 Hz mains interference. The filters run forwards and backwards, so the heartbeats do not move in time.
+3. **Clean-up.** Missing samples are replaced by the night's median, and values are limited to ±5 mV.
+4. **Minutes.** The night is cut into 60-second windows from the start. A final incomplete minute is dropped. Each window is rescaled on its own (mean 0, standard deviation 1), so the model sees the shape of the signal, not its amplitude.
+5. **Model.** One probability of apnea per minute.
+6. **Smoothing.** Each minute's probability is averaged with the two minutes before and the two after (5 minutes in all). At the start and end of the night, the first or last value stands in for the missing minutes.
+7. **Decision.** A minute is flagged as apnea when its averaged probability is above the model's threshold.
 
 ---
 
 ## 6. Where results are stored
 
-Everything the service knows is kept in a **PostgreSQL database**, which Docker runs next to the
-service: the patients, the nights with their recordings, every analysis with its minute-by-minute
-values, the versions of the model files and a log of actions. Only the model files stay on disk.
-The database's files are in `services/database/data/`, a folder of the project, not a Docker volume:
-they survive every `make` command, including `make clean`, and the deletion of Docker's containers
-and volumes. They are not committed to git.
+Everything the service knows is kept in a **PostgreSQL database**, which Docker runs next to the service: the patients, the nights with their recordings, every analysis with its minute-by-minute values, the versions of the model files and a log of actions. Only the model files stay on disk. The database's files are in `services/database/data/`, a folder of the project, not a Docker volume: they survive `make clean` and the deletion of Docker's containers and volumes; only `make fclean` deletes them. They are not committed to git.
 
 - Analysing a night again adds a new analysis; the interface shows the newest one.
-- An analysis counts for a night when it was made on the same content, with the same version of the
-  model file, the same threshold and the same smoothing. Otherwise the night shows "Not analysed".
+- An analysis counts for a night when it was made on the same content, with the same version of the model file, the same threshold and the same smoothing. Otherwise the night shows "Not analysed".
 
-**[DATABASE.md](DATABASE.md)** explains the tables, how to look at the data (`make db-shell`), and
-how to back up, restore or empty the database.
+**[DATABASE.md](DATABASE.md)** explains the tables, how to look at the data (`make db-shell`), and how to back up, restore or empty the database.
 
 ---
 
 ## 7. Settings
 
-Settings are in `.env`, in the project folder, created at the [first start](#first-start).
-After a change, run `make up`.
+Settings are in `.env`, in the project folder, created at the [first start](#first-start). After a change, run `make up`.
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -337,6 +285,9 @@ The paths are inside the container and must match the folders mounted in `docker
 | Project folder | Inside the container |
 |---|---|
 | `services/inference/data/models/` | `/models` |
+| `services/inference/demo/` | `/demo`, read-only: the scripts of `make demo` and `make eval` |
+| `data/apnea-ecg/` | `/apnea-ecg`: the Apnea-ECG records of `make demo` and `make eval` |
+| `results/` | `/results`: where `make eval` writes `evaluate.png` |
 | `services/database/data/` | `/var/lib/postgresql`, in the `database` container |
 
 ---
@@ -354,9 +305,12 @@ Run from the project folder.
 | `make rebuild` | Rebuild and restart: needed after changing any code in `services/inference/` |
 | `make shell` | Open a terminal inside the service's container |
 | `make db-shell` | Open PostgreSQL's command line, to look at the tables |
+| `make demo` | Add three demo patients, "Apnea-ECG control", "Apnea-ECG borderline" and "Apnea-ECG apnea", with the 35 test recordings of the Apnea-ECG Database (x01 to x35), on which no model was trained. They stay in the patient list like any other patient. The recordings are kept in `data/apnea-ecg/`; any missing ones are downloaded there first (about 210 MB in all). It takes a few minutes; running it again adds nothing |
+| `make eval` | Score `model_cinc2018_float32.tflite` and `model_cinc2018_int8.tflite` on the demo patients against the expert's minute labels. Prints accuracy, sensitivity, specificity, AUC and the TN, FP, FN and TP counts per model, and the accuracy per patient, and draws both confusion matrices in `results/evaluate.png`. Run `make demo` first, and `make rebuild` once after updating the project (the image needs matplotlib). The first run analyses the 35 nights with each model, about 2 minutes, and keeps the analyses, so the interface then shows those nights as analysed; later runs reuse them and take seconds |
 | `make down` | Remove the containers. Recordings and the database are kept |
 | `make build` | Build both images, the database's and the service's, without starting them |
 | `make clean` | **Removes the containers and every unused Docker image and cache on this computer**, including other projects'. Recordings and the database are kept |
+| `make fclean` | `make clean`, then **deletes the database**: every patient, recording and analysis. The next `make up` starts with an empty one. This cannot be undone: make a [backup](DATABASE.md#10-backup-and-restore) first |
 
 ---
 
@@ -373,6 +327,9 @@ services/
 │   │   ├── patients.py    # the rules for patient names and night files, reading a night's samples
 │   │   ├── db.py          # the database tables (SQLModel) and the connection
 │   │   └── store.py       # patients, nights and analyses in the database
+│   ├── demo/
+│   │   ├── apnea_ecg.py   # make demo: the Apnea-ECG demo patients, added through the API
+│   │   └── evaluate.py    # make eval: scores and results/evaluate.png
 │   ├── requirements.txt   # Python packages of the image
 │   ├── Dockerfile         # builds the interface with Node, then serves it with Python
 │   ├── web/               # the interface: React 19 + TypeScript, built with Vite
@@ -403,8 +360,4 @@ The interface talks to the server through these routes. `model` is a file name f
 | `POST /analyze?fs=100` | Analyses a file sent as the form field `file`, with the default model, without saving it. A name ending in `.npy` is read as a one-dimensional NumPy array; any other file as text, one value per line in mV, no header. `fs` is the file's sampling rate (default 100) |
 
 
-Errors return `{"detail": "<message>"}` with `400` (a patient name, file or upload that is not
-accepted), `404` (unknown patient, night or model), `409` (a night name already used by the patient, a
-night already stored, a night whose stored content no longer matches its checksum, or a model
-without a threshold or that cannot be loaded) or `422` (the night could not be
-analysed).
+Errors return `{"detail": "<message>"}` with `400` (a patient name, file or upload that is not accepted), `404` (unknown patient, night or model), `409` (a night name already used by the patient, a night already stored, a night whose stored content no longer matches its checksum, or a model without a threshold or that cannot be loaded) or `422` (the night could not be analysed).

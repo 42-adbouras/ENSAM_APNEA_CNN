@@ -3,6 +3,7 @@
 !training/
 !training/model.ipynb
 !training/inference.ipynb
+!training/model_google_colab.ipynb
 !/requirements.txt
 !results/
 
@@ -39,13 +40,15 @@ services/inference/web/dist/
 !Makefile
 
 !README.md
-!INFERENCE.md
+!INTERFACE.md
 !DATABASE.md
 !docs/
 !docs/screenshots/
 !docs/screenshots/*.png
 !docs/diagrams/
 !docs/diagrams/*.png
+!docs/figures/
+!docs/figures/*.png
 !.env.example
 
 !.gitignore

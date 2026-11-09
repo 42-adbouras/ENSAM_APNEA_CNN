@@ -1,12 +1,8 @@
 # The database
 
-The inference service ([INFERENCE.md](INFERENCE.md)) keeps everything it knows in a **PostgreSQL
-database**: the patients, their nights with the recordings themselves, every analysis with its
-minute-by-minute values, the versions of the model files, and a log of what happened. This page
-explains what is in it, how to look at it, and how to back it up, restore it or start again.
+The inference service ([INTERFACE.md](INTERFACE.md)) keeps everything it knows in a **PostgreSQL database**: the patients, their nights with the recordings themselves, every analysis with its minute-by-minute values, the versions of the model files, and a log of what happened. This page explains what is in it, how to look at it, and how to back it up, restore it or start again.
 
-Nothing about patients is kept in files: a night's `.csv` file is stored in the database, byte for
-byte, when it is uploaded. Only the model files stay on disk.
+Nothing about patients is kept in files: a night's `.csv` file is stored in the database, byte for byte, when it is uploaded. Only the model files stay on disk.
 
 ---
 
@@ -37,23 +33,17 @@ byte, when it is uploaded. Only the model files stay on disk.
 | Code | [services/inference/source/db.py](services/inference/source/db.py): the tables. [services/inference/source/store.py](services/inference/source/store.py): how the service reads and writes them |
 | Command line | `make db-shell` |
 
-Where the database sits: the browser talks only to the inference service, and the inference service
-is the only program that connects to PostgreSQL. `make db-shell` opens it from inside its own
-container.
+Where the database sits: the browser talks only to the inference service, and the inference service is the only program that connects to PostgreSQL. `make db-shell` opens it from inside its own container.
 
 ![The browser, the inference container and the database container, and how they connect](docs/diagrams/database-architecture.png)
 
-The seven tables and how they point to each other. `PK` is a table's own id, `FK` a column that
-points to another table's id, `UK` a column whose values are all different:
+The seven tables and how they point to each other. `PK` is a table's own id, `FK` a column that points to another table's id, `UK` a column whose values are all different:
 
 ![The seven tables, their columns and their links](docs/diagrams/database-tables.png)
 
 The box at the bottom left of the image explains the marks at the ends of the links.
 
-The diagrams are drawn from the `.mmd` files next to them in [docs/diagrams/](docs/diagrams/). To
-change one, paste its `.mmd` file into [mermaid.live](https://mermaid.live), edit it there and
-export it as PNG over the old image. The legend at the bottom left of the tables image is not part
-of its `.mmd` file: Mermaid has no legends, so an export from mermaid.live comes out without it.
+The diagrams are drawn from the `.mmd` files next to them in [docs/diagrams/](docs/diagrams/). To change one, paste its `.mmd` file into [mermaid.live](https://mermaid.live), edit it there and export it as PNG over the old image. The legend at the bottom left of the tables image is not part of its `.mmd` file: Mermaid has no legends, so an export from mermaid.live comes out without it.
 
 ---
 
@@ -67,16 +57,13 @@ The database starts and stops with the service:
 | `make ps` | Shows `apnea_database` and `apnea_inference`, both `(healthy)` when all is well |
 | `make stop`, `make down` | Stops it. Nothing is lost |
 | `make clean` | Removes the containers, Docker's volumes and caches. Nothing in `services/database/data/` is lost |
+| `make fclean` | `make clean`, then deletes everything in `services/database/data/`: the next `make up` creates an empty database |
 
-The first start creates the database, with the user, password and name set in `.env`. Every later
-start reuses what is in `services/database/data/`.
+The first start creates the database, with the user, password and name set in `.env`. Every later start reuses what is in `services/database/data/`.
 
-The data is in a folder of the project, not in a Docker volume. Deleting the containers, the images
-or Docker's volumes (`make down`, `make clean`, `docker compose down -v`, `docker volume prune`)
-leaves it as it is; only deleting the folder deletes the database.
+The data is in a folder of the project, not in a Docker volume. Deleting the containers, the images or Docker's volumes (`make down`, `make clean`, `docker compose down -v`, `docker volume prune`) leaves it as it is; only deleting the folder deletes the database.
 
-**Never edit or copy files inside `services/database/data/` while the database runs.** They are
-PostgreSQL's own files. To save the data, use a [backup](#10-backup-and-restore).
+**Never edit or copy files inside `services/database/data/` while the database runs.** They are PostgreSQL's own files. To save the data, use a [backup](#10-backup-and-restore).
 
 ---
 
@@ -88,8 +75,7 @@ With the service running, from the project folder:
 make db-shell
 ```
 
-This opens **psql**, PostgreSQL's command line, connected to the database. Type `\dt` to list the
-tables:
+This opens **psql**, PostgreSQL's command line, connected to the database. Type `\dt` to list the tables:
 
 ![make db-shell, then \dt](docs/screenshots/db-shell.png)
 
@@ -137,8 +123,7 @@ One row per night: the details of its file. The file itself is in `recording_fil
 
 ### recording_files
 
-One row per night: its `.csv` file, byte for byte. A table of its own, so that listing nights never
-reads the files (about 20 MB each; PostgreSQL stores them compressed, about a third of that).
+One row per night: its `.csv` file, byte for byte. A table of its own, so that listing nights never reads the files (about 20 MB each; PostgreSQL stores them compressed, about a third of that).
 
 | Column | Meaning |
 |---|---|
@@ -203,33 +188,19 @@ One row per action.
 
 ## 5. How the service fills it
 
-**Patients.** **Create patient** in the interface adds a row to `patients`. Several patients may
-have the same name: the interface and the API identify a patient by its `id`, which is the number in
-its page's address (`/patient/3f2b8c1e-5d4a-4e7b-9c2d-8a1f6e0b7d35`).
+**Patients.** **Create patient** in the interface adds a row to `patients`. Several patients may have the same name: the interface and the API identify a patient by its `id`, which is the number in its page's address (`/patient/3f2b8c1e-5d4a-4e7b-9c2d-8a1f6e0b7d35`).
 
-**Nights.** **Upload nights** in the interface adds a row to `recordings` and the file's content to
-`recording_files`, together with an event, all saved together or not at all.
-A night is refused when its name is already used by the same patient, or when the same content
-(same `sha256`) is already stored for any patient. A night keeps the original file's modification
-time, which sets its place in the order.
+**Nights.** **Upload nights** in the interface adds a row to `recordings` and the file's content to `recording_files`, together with an event, all saved together or not at all. A night is refused when its name is already used by the same patient, or when the same content (same `sha256`) is already stored for any patient. A night keeps the original file's modification time, which sets its place in the order.
 
 ![Uploading a night: the checks, then three rows saved together](docs/diagrams/database-upload.png)
 
-**Nights without content.** Before the recordings were kept in the database, nights were read from
-a folder, and only their details were stored. Such a night is not shown. Uploading its file again
-stores it as a new night, and its earlier analyses show again, since an analysis follows a night's
-content (`sha256`).
+**Nights without content.** Before the recordings were kept in the database, nights were read from a folder, and only their details were stored. Such a night is not shown. Uploading its file again stores it as a new night, and its earlier analyses show again, since an analysis follows a night's content (`sha256`).
 
-**Analyses.** Each click on **Analyse** (or each night of **Analyse all nights**) adds one row to
-`analyses`, about 500 rows to `analysis_minutes` and one to `events`, all saved together or not at
-all. Before analysing, the service checks the stored content against its `sha256`.
+**Analyses.** Each click on **Analyse** (or each night of **Analyse all nights**) adds one row to `analyses`, about 500 rows to `analysis_minutes` and one to `events`, all saved together or not at all. Before analysing, the service checks the stored content against its `sha256`.
 
 ![Analysing a night: read the file, run the model, save the result](docs/diagrams/database-analysis.png)
 
-**Which result the interface shows.** The newest analysis of the night's content (same `sha256`),
-with the current version of the selected model file, the current threshold and smoothing. After a
-new model file or a new threshold, the night shows "Not analysed" again; the older analyses stay in
-the table.
+**Which result the interface shows.** The newest analysis of the night's content (same `sha256`), with the current version of the selected model file, the current threshold and smoothing. After a new model file or a new threshold, the night shows "Not analysed" again; the older analyses stay in the table.
 
 **Nothing is deleted.** Old analyses stay, so the history is complete.
 
@@ -341,8 +312,7 @@ SELECT pg_size_pretty(pg_database_size(current_database())) AS database,
 
 ## 7. Exporting to a CSV file
 
-From the project folder, without opening psql. `--csv` writes the result as CSV, and `>` saves it
-in a file on your computer:
+From the project folder, without opening psql. `--csv` writes the result as CSV, and `>` saves it in a file on your computer:
 
 ```bash
 docker compose exec -T database sh -c 'psql -U "$DB_USER" -d "$DB_NAME" --csv -c "SELECT code, created_at FROM patients ORDER BY code"' > patients.csv
@@ -355,17 +325,13 @@ patient_1,2026-10-15 16:28:45.911057+00
 ...
 ```
 
-Any query from [section 6](#6-questions-you-can-ask) works between the double quotes, as long as it
-has no double quotes of its own.
+Any query from [section 6](#6-questions-you-can-ask) works between the double quotes, as long as it has no double quotes of its own.
 
 ---
 
 ## 8. From Python
 
-The tables are Python classes in [services/inference/source/db.py](services/inference/source/db.py), and
-[services/inference/source/store.py](services/inference/source/store.py) has the functions the service uses, so a
-Python script can read the data without writing SQL. Run Python inside the service's container,
-where the connection is already set up: `make shell`, then `python`.
+The tables are Python classes in [services/inference/source/db.py](services/inference/source/db.py), and [services/inference/source/store.py](services/inference/source/store.py) has the functions the service uses, so a Python script can read the data without writing SQL. Run Python inside the service's container, where the connection is already set up: `make shell`, then `python`.
 
 ```python
 from sqlmodel import Session
@@ -385,14 +351,9 @@ patient_2 2 ['NIGHT001.CSV', 'NIGHT002.CSV']
 patient_3 4 ['NIGHT001.CSV', 'NIGHT002.CSV', 'NIGHT003.CSV', 'NIGHT004.CSV']
 ```
 
-`patient.recordings` follows the link from a patient to its nights; in the same way,
-`recording.analyses`, `analysis.per_minute` and `analysis.model_file` follow the other links.
-Only read this way: the service expects to be the only one writing.
+`patient.recordings` follows the link from a patient to its nights; in the same way, `recording.analyses`, `analysis.per_minute` and `analysis.model_file` follow the other links. Only read this way: the service expects to be the only one writing.
 
-**Getting a night's file back out.** From the project folder, this writes the `NIGHT001.CSV` of the
-patient whose `id` is `3f2b8c1e-5d4a-4e7b-9c2d-8a1f6e0b7d35` to a file on your computer, identical to the one
-that was uploaded. The `id` is the end of the patient's page address, or the first column of the
-first query in [section 6](#6-questions-you-can-ask):
+**Getting a night's file back out.** From the project folder, this writes the `NIGHT001.CSV` of the patient whose `id` is `3f2b8c1e-5d4a-4e7b-9c2d-8a1f6e0b7d35` to a file on your computer, identical to the one that was uploaded. The `id` is the end of the patient's page address, or the first column of the first query in [section 6](#6-questions-you-can-ask):
 
 ```bash
 docker compose exec -T inference python -c '
@@ -410,8 +371,7 @@ with Session(engine) as s:
 
 ## 9. With a desktop app
 
-The database is not reachable from outside Docker. To open it in DBeaver, TablePlus, pgAdmin or a
-VS Code extension, add a `ports` line to the `database` service in `docker-compose.yml`:
+The database is not reachable from outside Docker. To open it in DBeaver, TablePlus, pgAdmin or a VS Code extension, add a `ports` line to the `database` service in `docker-compose.yml`:
 
 ```yaml
   database:
@@ -428,15 +388,13 @@ then run `make up`, and connect with:
 | Port | `5432` (use `"127.0.0.1:5433:5432"` and `5433` if PostgreSQL is already installed on the computer) |
 | User, password, database | `DB_USER`, `DB_PASS`, `DB_NAME` from `.env` |
 
-`127.0.0.1` opens the port on this computer only, not on the network. Use the app to look, not to
-edit: the service relies on analyses never being changed.
+`127.0.0.1` opens the port on this computer only, not on the network. Use the app to look, not to edit: the service relies on analyses never being changed.
 
 ---
 
 ## 10. Backup and restore
 
-The database holds everything, the recordings included, so a backup of the database is a backup of
-all the patients' data.
+The database holds everything, the recordings included, so a backup of the database is a backup of all the patients' data.
 
 **Back up** into one file, `backup.dump`, from the project folder:
 
@@ -444,8 +402,7 @@ all the patients' data.
 docker compose exec -T database sh -c 'pg_dump -U "$DB_USER" -Fc "$DB_NAME"' > backup.dump
 ```
 
-`-Fc` writes PostgreSQL's compressed format: about 4 MB per night of recording. (A plain `.sql`
-backup would be about ten times larger, because it writes the files as text.)
+`-Fc` writes PostgreSQL's compressed format: about 4 MB per night of recording. (A plain `.sql` backup would be about ten times larger, because it writes the files as text.)
 
 **Restore** a backup, replacing everything currently in the database:
 
@@ -455,8 +412,7 @@ docker compose exec -T database sh -c 'pg_restore -U "$DB_USER" -d "$DB_NAME" --
 make up
 ```
 
-The service is stopped during the restore so that it does not write at the same time.
-`--clean --if-exists` replaces each table with the backup's.
+The service is stopped during the restore so that it does not write at the same time. `--clean --if-exists` replaces each table with the backup's.
 
 A backup holds the patients' recordings: keep it out of git and out of shared folders.
 
@@ -464,8 +420,7 @@ A backup holds the patients' recordings: keep it out of git and out of shared fo
 
 ## 11. Starting again from empty
 
-This **deletes all patients' data**: the patients, their recordings, the analyses and the history.
-Make a [backup](#10-backup-and-restore) first if any of it may be needed again.
+This **deletes all patients' data**: the patients, their recordings, the analyses and the history. Make a [backup](#10-backup-and-restore) first if any of it may be needed again.
 
 ```bash
 make down
@@ -473,7 +428,6 @@ rm -rf services/database/data/*
 make up
 ```
 
-The service starts with an empty database.
+The service starts with an empty database. `make fclean` deletes the same files, after removing the containers and Docker's unused images and caches (`make clean`).
 
-Delete what is inside the folder, not the folder itself: Docker Desktop on a Mac keeps using a
-folder it shared even after it is deleted, and the database then fails to start.
+Delete what is inside the folder, not the folder itself: Docker Desktop on a Mac keeps using a folder it shared even after it is deleted, and the database then fails to start.
