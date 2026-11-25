@@ -24,7 +24,15 @@ The project has two parts:
 | **Model** | Dilated residual 1D CNN: 4-layer stem, 7 residual blocks (dilations 1 to 64), 69,646 parameters |
 | **Loss** | Binary cross-entropy |
 | **Framework** | TensorFlow 2.20 (Keras 3) |
-| **Review interface** | FastAPI + React, with a PostgreSQL database, in Docker ([INTERFACE.md](INTERFACE.md)) |
+| **Review interface** | FastAPI + React, with a PostgreSQL database, behind an nginx HTTPS proxy, in Docker ([INTERFACE.md](INTERFACE.md)) |
+
+---
+
+## Model
+
+![The model: stem, 7 residual blocks, pooling and head, with the inside of one residual block](docs/diagrams/model-architecture.png)
+
+The stem shrinks the minute to 375 timesteps; the dilated blocks then widen the receptive field to **8225 samples (82.2 s)**. `build_model()` asserts that this covers the 60 s window, so a change to the stem or the dilations that breaks the coverage fails at build time.
 
 ---
 
@@ -96,12 +104,16 @@ ENSAM_APNEA_CNN/
 │   │   ├── demo/evaluate.py   # make eval: the cinc2018 models scored on those patients
 │   │   ├── data/models/     # .tflite models the service runs
 │   │   └── Dockerfile, requirements.txt
-│   └── database/            # the PostgreSQL database, see DATABASE.md
-│       ├── Dockerfile       # its image (PostgreSQL 18)
-│       ├── setup/setup.sh   # starts PostgreSQL with the settings from .env
-│       └── data/            # its files: patients, recordings, results (git-ignored)
+│   ├── database/            # the PostgreSQL database, see DATABASE.md
+│   │   ├── Dockerfile       # its image (PostgreSQL 18)
+│   │   ├── setup/setup.sh   # starts PostgreSQL with the settings from .env
+│   │   └── data/            # its files: patients, recordings, results (git-ignored)
+│   └── nginx/               # the reverse proxy: HTTPS on port 443, the only port open on the computer
+│       ├── Dockerfile       # its image (nginx on Debian 12) and its certificate
+│       ├── certs/           # the server's own certificate and key, if any; else a self-signed one is made
+│       └── conf/nginx.conf  # passes every request on to the inference service
 ├── requirements.txt         # Python packages of the training notebook
-├── docker-compose.yml       # runs the inference service and its database
+├── docker-compose.yml       # runs nginx, the inference service and its database
 ├── Makefile                 # make up, make rebuild, make logs, make shell...
 ├── .env.example             # service settings; copy to .env
 ├── INTERFACE.md             # inference service guide
@@ -139,7 +151,9 @@ cp .env.example .env    # then replace change-me with a password, in both lines
 make up
 ```
 
-Then open **http://localhost:8000**: a list of patients, each with their recorded nights. Pick a model and analyse a night, or all of a patient's nights at once, to see the apnea minutes per hour, the flagged periods and a minute-by-minute chart.
+Then open **https://localhost**: a list of patients, each with their recorded nights. Pick a model and analyse a night, or all of a patient's nights at once, to see the apnea minutes per hour, the flagged periods and a minute-by-minute chart.
+
+The page goes through nginx, the only container with a port open on the computer (443). Its certificate is self-signed, so the browser warns the first time: click **Advanced**, then continue to localhost. For a deployment, a trusted certificate and its key go in `services/nginx/certs/` as `apnea.crt` and `apnea.key` (see [INTERFACE.md](INTERFACE.md#first-start)).
 
 ![A night analysed in the interface](docs/screenshots/night.png)
 
@@ -184,9 +198,7 @@ A minute is dropped only when the expert did not score it, never for signal qual
 
 ### Model
 
-![The model: stem, 7 residual blocks, pooling and head, with the inside of one residual block](docs/diagrams/model-architecture.png)
-
-The stem shrinks the minute to 375 timesteps; the dilated blocks then widen the receptive field to **8225 samples (82.2 s)**. `build_model()` asserts that this covers the 60 s window, so a change to the stem or the dilations that breaks the coverage fails at build time.
+Builds the network described in [Model](#model) and compiles it.
 
 ### Training
 

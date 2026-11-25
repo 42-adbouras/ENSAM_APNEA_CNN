@@ -32,6 +32,13 @@
 !services/inference/web/
 !services/inference/web/**
 !services/inference/.dockerignore
+!services/nginx/
+!services/nginx/Dockerfile
+!services/nginx/conf/
+!services/nginx/conf/nginx.conf
+!services/nginx/.dockerignore
+!services/nginx/certs/
+!services/nginx/certs/.gitkeep
 services/inference/web/node_modules/
 services/inference/web/dist/
 

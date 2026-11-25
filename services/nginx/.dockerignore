@@ -1,0 +1,2 @@
+# Keeps the empty certs/ folder in git; not copied into the image
+certs/.gitkeep

@@ -42,16 +42,22 @@ DB_URL=postgresql://db-username:db-password@database:5432/db-name
 Each line is one setting, explained in [Settings](#7-settings). Then start the service:
 
 ```bash
-make up    # builds the image (first time only) and starts the service
+make up    # builds the images (first time only) and starts the service
 ```
 
 The first `make up` takes a few minutes, because it downloads and builds everything. Later starts take a few seconds.
 
-Then open **http://localhost:8000** in your browser.
+Then open **https://localhost** in your browser.
+
+The first time, the browser warns that the connection is not private: the certificate is self-signed, made by the nginx image when it was built, not by a certificate authority. Click **Advanced**, then continue to localhost (in Safari: **Show Details**, then **visit this website**). The traffic is encrypted all the same. The certificate is valid for a year from the build; the warning comes back once whenever the nginx image is built from scratch with a new one, for example after `make clean`.
+
+On a server that doctors open from their own computers, use a certificate their browsers trust instead, for the server's name (from the clinic's IT department or Let's Encrypt): put it in `services/nginx/certs/` as `apnea.crt`, with its key as `apnea.key`, then run `make rebuild`. The nginx image then uses them and makes no self-signed certificate, and the warning disappears. Git ignores both files; the key ends up inside the image, so the image stays on the server.
+
+nginx is the only container with a port open on the computer, 443 (HTTPS): it passes every request on to the service, which listens on port 8000 inside Docker only. A plain `http://localhost` finds nothing, since port 80 is not open.
 
 The patient list starts empty: add patients and their nights as described in [Adding recordings](#3-adding-recordings).
 
-To check that it is running, `make ps` should show both containers, `apnea_database` and `apnea_inference`, as `(healthy)`.
+To check that it is running, `make ps` should show the three containers: `apnea_database` and `apnea_inference` as `(healthy)`, and `apnea_nginx` as `Up`.
 
 ### Stopping it
 
@@ -300,15 +306,15 @@ Run from the project folder.
 |---|---|
 | `make up` | Start the service (builds the image the first time) |
 | `make stop` | Stop the service |
-| `make ps` | Show whether the two containers are running and healthy |
+| `make ps` | Show whether the three containers are running, and whether the service and the database are healthy |
 | `make logs` | Show the service's log as it runs |
-| `make rebuild` | Rebuild and restart: needed after changing any code in `services/inference/` |
+| `make rebuild` | Rebuild and restart: needed after changing any code in `services/inference/` or `services/nginx/` |
 | `make shell` | Open a terminal inside the service's container |
 | `make db-shell` | Open PostgreSQL's command line, to look at the tables |
 | `make demo` | Add three demo patients, "Apnea-ECG control", "Apnea-ECG borderline" and "Apnea-ECG apnea", with the 35 test recordings of the Apnea-ECG Database (x01 to x35), on which no model was trained. They stay in the patient list like any other patient. The recordings are kept in `data/apnea-ecg/`; any missing ones are downloaded there first (about 210 MB in all). It takes a few minutes; running it again adds nothing |
 | `make eval` | Score `model_cinc2018_float32.tflite` and `model_cinc2018_int8.tflite` on the demo patients against the expert's minute labels. Prints accuracy, sensitivity, specificity, AUC and the TN, FP, FN and TP counts per model, and the accuracy per patient, and draws both confusion matrices in `results/evaluate.png`. Run `make demo` first, and `make rebuild` once after updating the project (the image needs matplotlib). The first run analyses the 35 nights with each model, about 2 minutes, and keeps the analyses, so the interface then shows those nights as analysed; later runs reuse them and take seconds |
 | `make down` | Remove the containers. Recordings and the database are kept |
-| `make build` | Build both images, the database's and the service's, without starting them |
+| `make build` | Build the three images, the database's, the service's and nginx's, without starting them |
 | `make clean` | **Removes the containers and every unused Docker image and cache on this computer**, including other projects'. Recordings and the database are kept |
 | `make fclean` | `make clean`, then **deletes the database**: every patient, recording and analysis. The next `make up` starts with an empty one. This cannot be undone: make a [backup](DATABASE.md#10-backup-and-restore) first |
 
@@ -335,17 +341,21 @@ services/
 │   ├── web/               # the interface: React 19 + TypeScript, built with Vite
 │   └── data/
 │       └── models/        # .tflite models
-└── database/
-    ├── Dockerfile         # the database's image: PostgreSQL 18
-    ├── setup/setup.sh     # starts PostgreSQL with the settings from .env
-    └── data/              # the database's files (not committed)
+├── database/
+│   ├── Dockerfile         # the database's image: PostgreSQL 18
+│   ├── setup/setup.sh     # starts PostgreSQL with the settings from .env
+│   └── data/              # the database's files (not committed)
+└── nginx/
+    ├── Dockerfile         # the proxy's image: nginx on Debian 12, with its certificate
+    ├── certs/             # the server's own apnea.crt and apnea.key, if any (not committed)
+    └── conf/nginx.conf    # HTTPS on port 443, every request passed on to the service
 ```
 
 `pipeline.py`, `patients.py`, `db.py` and `store.py` do not depend on the web server, so they can be imported from any Python script.
 
 ### HTTP API
 
-The interface talks to the server through these routes. `model` is a file name from the models folder; without it, the model named by `MODEL_PATH` is used.
+The interface talks to the server through these routes, at `https://localhost` through nginx (with curl, add `-k` to accept the self-signed certificate). `model` is a file name from the models folder; without it, the model named by `MODEL_PATH` is used.
 
 | Method and path | Returns |
 |---|---|

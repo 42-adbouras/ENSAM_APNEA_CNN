@@ -33,9 +33,9 @@ Nothing about patients is kept in files: a night's `.csv` file is stored in the 
 | Code | [services/inference/source/db.py](services/inference/source/db.py): the tables. [services/inference/source/store.py](services/inference/source/store.py): how the service reads and writes them |
 | Command line | `make db-shell` |
 
-Where the database sits: the browser talks only to the inference service, and the inference service is the only program that connects to PostgreSQL. `make db-shell` opens it from inside its own container.
+Where the database sits: the browser talks only to nginx, over HTTPS on port 443, and nginx passes each request on to the inference service; the inference service is the only program that connects to PostgreSQL. `make db-shell` opens it from inside its own container.
 
-![The browser, the inference container and the database container, and how they connect](docs/diagrams/database-architecture.png)
+![The browser, the nginx, inference and database containers, and how they connect](docs/diagrams/database-architecture.png)
 
 The seven tables and how they point to each other. `PK` is a table's own id, `FK` a column that points to another table's id, `UK` a column whose values are all different:
 

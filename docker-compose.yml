@@ -5,6 +5,8 @@ services:
     build:
       context: ./services/database
     env_file: .env
+    networks:
+      - apnea
     volumes:
       - ./services/database/data:/var/lib/postgresql
     healthcheck:
@@ -18,9 +20,9 @@ services:
     container_name: apnea_inference
     build:
       context: ./services/inference
-    ports:
-      - "8000:8000"
     env_file: .env
+    networks:
+      - apnea
     depends_on:
       database:
         condition: service_healthy
@@ -29,3 +31,20 @@ services:
       - ./services/inference/demo:/demo:ro
       - ./data/apnea-ecg:/apnea-ecg
       - ./results:/results
+
+  nginx:
+    image: apnea-nginx:0.2
+    container_name: apnea_nginx
+    build:
+      context: ./services/nginx
+    ports:
+      - "443:443"
+    networks:
+      - apnea
+    depends_on:
+      - inference
+
+networks:
+  apnea:
+    name: apnea_network
+    driver: bridge
